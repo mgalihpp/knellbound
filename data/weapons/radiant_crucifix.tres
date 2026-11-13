@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_data.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://art/icons/radiant_crucifix.png" id="2_icon"]
+[ext_resource type="PackedScene" path="res://weapons/cross/radiant_crucifix.tscn" id="3_scene"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"radiant_crucifix"
+display_name = "Radiant Crucifix"
+description = "Ricochets without end and bursts into a ring of light."
+icon = ExtResource("2_icon")
+scene = ExtResource("3_scene")
+is_evolution = true
+damage = 36.0
+cooldown = 2.0
+area = 0.75
+knockback = 3.0
+amount = 3
+projectile_speed = 14.0
+duration = 4.0
+pierce = 0

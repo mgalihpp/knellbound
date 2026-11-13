@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="BreakableData" format=3]
+
+[ext_resource type="Script" path="res://world/breakable_data.gd" id="1_script"]
+[ext_resource type="Resource" path="res://data/drops/breakable_drops.tres" id="2_drops"]
+
+[resource]
+script = ExtResource("1_script")
+drops = ExtResource("2_drops")
+id = &"iron_lantern"
+display_name = "Iron Lantern"
+behavior = 5
+sprite_row = 7
+max_hp = 10.0
+move_speed = 0.0
+contact_damage = 0.0
+radius = 0.35
+knockback_resist = 1.0
+xp_value = 0.0
+death_effect = 7

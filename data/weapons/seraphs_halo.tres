@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_data.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://art/icons/seraphs_halo.png" id="2_icon"]
+[ext_resource type="PackedScene" path="res://weapons/aura/seraphs_halo.tscn" id="3_scene"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"seraphs_halo"
+display_name = "Seraph's Halo"
+description = "A golden halo that burns the damned and mends you with every pulse."
+icon = ExtResource("2_icon")
+scene = ExtResource("3_scene")
+is_evolution = true
+damage = 20.0
+cooldown = 0.45
+area = 4.0
+knockback = 7.0

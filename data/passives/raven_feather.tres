@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="PassiveData" format=3]
+
+[ext_resource type="Script" path="res://passives/passive_data.gd" id="1_script"]
+[ext_resource type="Script" path="res://core/stat_modifier.gd" id="2_mod"]
+[ext_resource type="Texture2D" path="res://art/icons/raven_feather.png" id="3_icon"]
+
+[sub_resource type="Resource" id="Resource_mod0"]
+script = ExtResource("2_mod")
+stat = 4
+percent = 0.1
+
+[resource]
+script = ExtResource("1_script")
+id = &"raven_feather"
+display_name = "Raven Feather"
+description = "Light as the night bird's wing. +10% projectile speed."
+icon = ExtResource("3_icon")
+max_level = 5
+modifiers = Array[ExtResource("2_mod")]([SubResource("Resource_mod0")])

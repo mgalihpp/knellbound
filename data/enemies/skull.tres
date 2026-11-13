@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://enemies/enemy_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"skull"
+display_name = "Cinder Skull"
+behavior = 3
+sprite_row = 6
+max_hp = 8.0
+move_speed = 5.5
+contact_damage = 9.0
+radius = 0.38
+scale = 1.0
+knockback_resist = 0.8
+xp_value = 1.0
+death_effect = 0

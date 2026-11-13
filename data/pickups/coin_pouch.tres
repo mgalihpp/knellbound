@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PickupData" format=3]
+
+[ext_resource type="Script" path="res://pickups/pickup_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"coin_pouch"
+display_name = "Coin Pouch"
+effect = 4
+amount = 10.0
+sprite_row = 6
+scale = 0.9
+drop_weight = 1.2
+luck_weighted = true
+magnetic = true
+collect_effect = 4

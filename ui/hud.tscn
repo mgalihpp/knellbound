@@ -1,0 +1,236 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://ui/hud.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://art/ui/icon_heart.png" id="2_heart"]
+[ext_resource type="Texture2D" path="res://art/ui/icon_skull.png" id="3_skull"]
+[ext_resource type="Texture2D" path="res://art/ui/icon_coin.png" id="4_coin"]
+
+[node name="HUD" type="CanvasLayer"]
+process_mode = 3
+script = ExtResource("1_script")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Arrows" type="Control" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="XpBar" type="ProgressBar" parent="Root"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = -4.0
+offset_bottom = 28.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_type_variation = &"XpBar"
+max_value = 1.0
+step = 0.0
+show_percentage = false
+
+[node name="LevelLabel" type="Label" parent="Root/XpBar"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -160.0
+offset_top = 1.0
+offset_right = -12.0
+offset_bottom = 1.0
+grow_horizontal = 0
+grow_vertical = 2
+theme_type_variation = &"GoldLabel"
+text = "LV 1"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="Left" type="VBoxContainer" parent="Root"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 38.0
+offset_right = 330.0
+offset_bottom = 180.0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="HpRow" type="HBoxContainer" parent="Root/Left"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="Heart" type="TextureRect" parent="Root/Left/HpRow"]
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("2_heart")
+stretch_mode = 3
+
+[node name="HpBar" type="ProgressBar" parent="Root/Left/HpRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 20)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"HpBar"
+value = 100.0
+show_percentage = false
+
+[node name="HpLabel" type="Label" parent="Root/Left/HpRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SmallLabel"
+text = "100/100"
+vertical_alignment = 1
+
+[node name="Loadout" type="VBoxContainer" parent="Root/Left"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="Center" type="VBoxContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -280.0
+offset_top = 34.0
+offset_right = 280.0
+offset_bottom = 140.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="TimeLabel" type="Label" parent="Root/Center"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"TimerLabel"
+text = "00:00"
+horizontal_alignment = 1
+
+[node name="BossPanel" type="VBoxContainer" parent="Root/Center"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="BossName" type="Label" parent="Root/Center/BossPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"GoldLabel"
+text = "Boss"
+horizontal_alignment = 1
+
+[node name="BossBar" type="ProgressBar" parent="Root/Center/BossPanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(520, 20)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+theme_type_variation = &"BossBar"
+max_value = 1.0
+step = 0.0
+value = 1.0
+show_percentage = false
+
+[node name="Right" type="VBoxContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -220.0
+offset_top = 38.0
+offset_right = -12.0
+offset_bottom = 110.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="KillsRow" type="HBoxContainer" parent="Root/Right"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 2
+
+[node name="KillsLabel" type="Label" parent="Root/Right/KillsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "0"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="Skull" type="TextureRect" parent="Root/Right/KillsRow"]
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("3_skull")
+stretch_mode = 3
+
+[node name="CoinsRow" type="HBoxContainer" parent="Root/Right"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 2
+
+[node name="CoinsLabel" type="Label" parent="Root/Right/CoinsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"GoldLabel"
+text = "0"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="Coin" type="TextureRect" parent="Root/Right/CoinsRow"]
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("4_coin")
+stretch_mode = 3
+
+[node name="DebugPanel" type="PanelContainer" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = -8.0
+offset_right = 8.0
+offset_bottom = -8.0
+grow_vertical = 0
+mouse_filter = 2
+theme_type_variation = &"InsetPanel"
+modulate = Color(1, 1, 1, 0.85)
+
+[node name="VBox" type="VBoxContainer" parent="Root/DebugPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="DebugLabel" type="Label" parent="Root/DebugPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SmallLabel"
+text = "FPS"
+
+[node name="DebugKeys" type="Label" parent="Root/DebugPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SmallLabel"
+theme_override_colors/font_color = Color(0.75, 0.72, 0.86, 1)
+text = "keys"

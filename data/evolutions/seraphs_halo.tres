@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="EvolutionData" format=3]
+
+[ext_resource type="Script" path="res://passives/evolution_data.gd" id="1_script"]
+[ext_resource type="Resource" path="res://data/weapons/holy_aura.tres" id="2_base"]
+[ext_resource type="Resource" path="res://data/passives/heart_locket.tres" id="3_passive"]
+[ext_resource type="Resource" path="res://data/weapons/seraphs_halo.tres" id="4_result"]
+
+[resource]
+script = ExtResource("1_script")
+base = ExtResource("2_base")
+passive = ExtResource("3_passive")
+passive_level = 1
+result = ExtResource("4_result")

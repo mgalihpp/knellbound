@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="MetaCatalog" format=3]
+
+[ext_resource type="Script" path="res://meta/meta_catalog.gd" id="1_script"]
+[ext_resource type="Script" path="res://characters/character_data.gd" id="2_char"]
+[ext_resource type="Script" path="res://meta/meta_upgrade.gd" id="3_up"]
+[ext_resource type="Resource" path="res://data/characters/hunter.tres" id="c_hunter"]
+[ext_resource type="Resource" path="res://data/characters/maud.tres" id="c_maud"]
+[ext_resource type="Resource" path="res://data/characters/vesna.tres" id="c_vesna"]
+[ext_resource type="Resource" path="res://data/characters/odo.tres" id="c_odo"]
+[ext_resource type="Resource" path="res://data/characters/ysolde.tres" id="c_ysolde"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/might.tres" id="u_might"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/armor.tres" id="u_armor"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/max_hp.tres" id="u_max_hp"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/recovery.tres" id="u_recovery"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/cooldown.tres" id="u_cooldown"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/area.tres" id="u_area"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/speed.tres" id="u_speed"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/duration.tres" id="u_duration"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/amount.tres" id="u_amount"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/move_speed.tres" id="u_move_speed"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/magnet.tres" id="u_magnet"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/luck.tres" id="u_luck"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/growth.tres" id="u_growth"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/greed.tres" id="u_greed"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/revival.tres" id="u_revival"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/reroll.tres" id="u_reroll"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/skip.tres" id="u_skip"]
+[ext_resource type="Resource" path="res://data/meta_upgrades/banish.tres" id="u_banish"]
+
+[resource]
+script = ExtResource("1_script")
+characters = Array[ExtResource("2_char")]([ExtResource("c_hunter"), ExtResource("c_maud"), ExtResource("c_vesna"), ExtResource("c_odo"), ExtResource("c_ysolde")])
+upgrades = Array[ExtResource("3_up")]([ExtResource("u_might"), ExtResource("u_armor"), ExtResource("u_max_hp"), ExtResource("u_recovery"), ExtResource("u_cooldown"), ExtResource("u_area"), ExtResource("u_speed"), ExtResource("u_duration"), ExtResource("u_amount"), ExtResource("u_move_speed"), ExtResource("u_magnet"), ExtResource("u_luck"), ExtResource("u_growth"), ExtResource("u_greed"), ExtResource("u_revival"), ExtResource("u_reroll"), ExtResource("u_skip"), ExtResource("u_banish")])
+default_character = ExtResource("c_hunter")

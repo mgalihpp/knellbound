@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="BreakableData" format=3]
+
+[ext_resource type="Script" path="res://world/breakable_data.gd" id="1_script"]
+[ext_resource type="Resource" path="res://data/drops/breakable_drops.tres" id="2_drops"]
+
+[resource]
+script = ExtResource("1_script")
+drops = ExtResource("2_drops")
+id = &"supply_crate"
+display_name = "Supply Crate"
+behavior = 5
+sprite_row = 9
+max_hp = 10.0
+move_speed = 0.0
+contact_damage = 0.0
+radius = 0.5
+knockback_resist = 1.0
+xp_value = 0.0
+death_effect = 6

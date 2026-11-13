@@ -1,0 +1,393 @@
+[gd_resource type="Resource" script_class="WaveTable" format=3]
+
+[ext_resource type="Script" path="res://enemies/wave_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://enemies/wave_entry.gd" id="2_entry"]
+[ext_resource type="Script" path="res://enemies/wave_event.gd" id="3_event"]
+[ext_resource type="Script" path="res://enemies/enemy_data.gd" id="4_enemy"]
+[ext_resource type="Resource" path="res://data/enemies/acolyte.tres" id="e_acolyte"]
+[ext_resource type="Resource" path="res://data/enemies/bat.tres" id="e_bat"]
+[ext_resource type="Resource" path="res://data/enemies/brute.tres" id="e_brute"]
+[ext_resource type="Resource" path="res://data/enemies/ghoul.tres" id="e_ghoul"]
+[ext_resource type="Resource" path="res://data/enemies/hollow_abbot.tres" id="e_hollow_abbot"]
+[ext_resource type="Resource" path="res://data/enemies/knellwraith.tres" id="e_knellwraith"]
+[ext_resource type="Resource" path="res://data/enemies/skeleton.tres" id="e_skeleton"]
+[ext_resource type="Resource" path="res://data/enemies/skull.tres" id="e_skull"]
+[ext_resource type="Resource" path="res://data/enemies/vesperine.tres" id="e_vesperine"]
+[ext_resource type="Resource" path="res://data/enemies/wisp.tres" id="e_wisp"]
+
+[sub_resource type="Resource" id="entry_0"]
+script = ExtResource("2_entry")
+start_minute = 0.0
+end_minute = 6.0
+enemies = Array[ExtResource("4_enemy")]([ExtResource("e_ghoul"), ExtResource("e_bat")])
+weights = PackedFloat32Array(3.0, 1.0)
+rate_start = 2.0
+rate_end = 5.0
+max_alive = 250
+hp_mult = 1.0
+cluster_min = 3
+cluster_max = 6
+
+[sub_resource type="Resource" id="entry_1"]
+script = ExtResource("2_entry")
+start_minute = 3.0
+end_minute = 12.0
+enemies = Array[ExtResource("4_enemy")]([ExtResource("e_bat")])
+weights = PackedFloat32Array(1.0)
+rate_start = 1.0
+rate_end = 3.0
+max_alive = 400
+hp_mult = 1.0
+cluster_min = 4
+cluster_max = 8
+
+[sub_resource type="Resource" id="entry_2"]
+script = ExtResource("2_entry")
+start_minute = 5.0
+end_minute = 15.0
+enemies = Array[ExtResource("4_enemy")]([ExtResource("e_ghoul"), ExtResource("e_skeleton"), ExtResource("e_acolyte")])
+weights = PackedFloat32Array(4.0, 2.0, 1.0)
+rate_start = 4.0
+rate_end = 8.0
+max_alive = 500
+hp_mult = 1.0
+cluster_min = 3
+cluster_max = 6
+
+[sub_resource type="Resource" id="entry_3"]
+script = ExtResource("2_entry")
+start_minute = 8.0
+end_minute = 30.0
+enemies = Array[ExtResource("4_enemy")]([ExtResource("e_brute")])
+weights = PackedFloat32Array(1.0)
+rate_start = 0.15
+rate_end = 0.5
+max_alive = 900
+hp_mult = 1.0
+cluster_min = 1
+cluster_max = 1
+
+[sub_resource type="Resource" id="entry_4"]
+script = ExtResource("2_entry")
+start_minute = 12.0
+end_minute = 22.0
+enemies = Array[ExtResource("4_enemy")]([ExtResource("e_skeleton"), ExtResource("e_acolyte"), ExtResource("e_bat")])
+weights = PackedFloat32Array(3.0, 2.0, 3.0)
+rate_start = 7.0
+rate_end = 12.0
+max_alive = 800
+hp_mult = 1.2
+cluster_min = 4
+cluster_max = 7
+
+[sub_resource type="Resource" id="entry_5"]
+script = ExtResource("2_entry")
+start_minute = 15.0
+end_minute = 30.0
+enemies = Array[ExtResource("4_enemy")]([ExtResource("e_ghoul")])
+weights = PackedFloat32Array(1.0)
+rate_start = 8.0
+rate_end = 14.0
+max_alive = 1000
+hp_mult = 1.5
+cluster_min = 6
+cluster_max = 10
+
+[sub_resource type="Resource" id="entry_6"]
+script = ExtResource("2_entry")
+start_minute = 22.0
+end_minute = 30.0
+enemies = Array[ExtResource("4_enemy")]([ExtResource("e_skeleton"), ExtResource("e_acolyte")])
+weights = PackedFloat32Array(4.0, 3.0)
+rate_start = 12.0
+rate_end = 18.0
+max_alive = 1200
+hp_mult = 1.4
+cluster_min = 4
+cluster_max = 8
+
+[sub_resource type="Resource" id="entry_7"]
+script = ExtResource("2_entry")
+start_minute = 25.0
+end_minute = 30.0
+enemies = Array[ExtResource("4_enemy")]([ExtResource("e_bat")])
+weights = PackedFloat32Array(1.0)
+rate_start = 4.0
+rate_end = 8.0
+max_alive = 1300
+hp_mult = 1.3
+cluster_min = 8
+cluster_max = 12
+
+[sub_resource type="Resource" id="event_0"]
+script = ExtResource("3_event")
+minute = 1.0
+kind = 0
+enemy = ExtResource("e_wisp")
+count = 20
+radius = 14.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_1"]
+script = ExtResource("3_event")
+minute = 2.0
+kind = 2
+enemy = ExtResource("e_bat")
+count = 40
+radius = 18.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_2"]
+script = ExtResource("3_event")
+minute = 3.0
+kind = 1
+enemy = ExtResource("e_skull")
+count = 14
+radius = 20.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_3"]
+script = ExtResource("3_event")
+minute = 4.0
+kind = 3
+enemy = ExtResource("e_ghoul")
+count = 1
+radius = 0.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_4"]
+script = ExtResource("3_event")
+minute = 5.0
+kind = 0
+enemy = ExtResource("e_wisp")
+count = 28
+radius = 14.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_5"]
+script = ExtResource("3_event")
+minute = 6.0
+kind = 2
+enemy = ExtResource("e_bat")
+count = 60
+radius = 18.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_6"]
+script = ExtResource("3_event")
+minute = 7.0
+kind = 3
+enemy = ExtResource("e_skeleton")
+count = 1
+radius = 0.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_7"]
+script = ExtResource("3_event")
+minute = 7.5
+kind = 1
+enemy = ExtResource("e_skull")
+count = 18
+radius = 20.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_8"]
+script = ExtResource("3_event")
+minute = 8.5
+kind = 0
+enemy = ExtResource("e_wisp")
+count = 32
+radius = 15.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_9"]
+script = ExtResource("3_event")
+minute = 10.0
+kind = 4
+enemy = ExtResource("e_hollow_abbot")
+count = 1
+radius = 0.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_10"]
+script = ExtResource("3_event")
+minute = 11.0
+kind = 2
+enemy = ExtResource("e_bat")
+count = 80
+radius = 18.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_11"]
+script = ExtResource("3_event")
+minute = 12.0
+kind = 3
+enemy = ExtResource("e_brute")
+count = 1
+radius = 0.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_12"]
+script = ExtResource("3_event")
+minute = 13.0
+kind = 0
+enemy = ExtResource("e_wisp")
+count = 40
+radius = 15.0
+hp_mult = 1.2
+
+[sub_resource type="Resource" id="event_13"]
+script = ExtResource("3_event")
+minute = 14.0
+kind = 1
+enemy = ExtResource("e_skull")
+count = 24
+radius = 20.0
+hp_mult = 1.2
+
+[sub_resource type="Resource" id="event_14"]
+script = ExtResource("3_event")
+minute = 15.0
+kind = 3
+enemy = ExtResource("e_acolyte")
+count = 2
+radius = 0.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_15"]
+script = ExtResource("3_event")
+minute = 16.0
+kind = 0
+enemy = ExtResource("e_wisp")
+count = 48
+radius = 15.0
+hp_mult = 1.5
+
+[sub_resource type="Resource" id="event_16"]
+script = ExtResource("3_event")
+minute = 17.0
+kind = 2
+enemy = ExtResource("e_bat")
+count = 100
+radius = 18.0
+hp_mult = 1.2
+
+[sub_resource type="Resource" id="event_17"]
+script = ExtResource("3_event")
+minute = 18.0
+kind = 3
+enemy = ExtResource("e_skeleton")
+count = 2
+radius = 0.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_18"]
+script = ExtResource("3_event")
+minute = 19.0
+kind = 1
+enemy = ExtResource("e_skull")
+count = 30
+radius = 20.0
+hp_mult = 1.5
+
+[sub_resource type="Resource" id="event_19"]
+script = ExtResource("3_event")
+minute = 20.0
+kind = 4
+enemy = ExtResource("e_vesperine")
+count = 1
+radius = 0.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_20"]
+script = ExtResource("3_event")
+minute = 21.0
+kind = 0
+enemy = ExtResource("e_wisp")
+count = 56
+radius = 15.0
+hp_mult = 1.8
+
+[sub_resource type="Resource" id="event_21"]
+script = ExtResource("3_event")
+minute = 22.0
+kind = 3
+enemy = ExtResource("e_brute")
+count = 2
+radius = 0.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_22"]
+script = ExtResource("3_event")
+minute = 23.0
+kind = 2
+enemy = ExtResource("e_bat")
+count = 120
+radius = 18.0
+hp_mult = 1.5
+
+[sub_resource type="Resource" id="event_23"]
+script = ExtResource("3_event")
+minute = 24.0
+kind = 1
+enemy = ExtResource("e_skull")
+count = 36
+radius = 20.0
+hp_mult = 1.8
+
+[sub_resource type="Resource" id="event_24"]
+script = ExtResource("3_event")
+minute = 25.0
+kind = 4
+enemy = ExtResource("e_hollow_abbot")
+count = 1
+radius = 0.0
+hp_mult = 2.0
+
+[sub_resource type="Resource" id="event_25"]
+script = ExtResource("3_event")
+minute = 26.0
+kind = 0
+enemy = ExtResource("e_wisp")
+count = 64
+radius = 16.0
+hp_mult = 2.0
+
+[sub_resource type="Resource" id="event_26"]
+script = ExtResource("3_event")
+minute = 27.0
+kind = 3
+enemy = ExtResource("e_acolyte")
+count = 3
+radius = 0.0
+hp_mult = 1.0
+
+[sub_resource type="Resource" id="event_27"]
+script = ExtResource("3_event")
+minute = 28.0
+kind = 2
+enemy = ExtResource("e_bat")
+count = 150
+radius = 18.0
+hp_mult = 2.0
+
+[sub_resource type="Resource" id="event_28"]
+script = ExtResource("3_event")
+minute = 29.0
+kind = 0
+enemy = ExtResource("e_wisp")
+count = 72
+radius = 16.0
+hp_mult = 2.5
+
+[resource]
+script = ExtResource("1_table")
+entries = Array[ExtResource("2_entry")]([SubResource("entry_0"), SubResource("entry_1"), SubResource("entry_2"), SubResource("entry_3"), SubResource("entry_4"), SubResource("entry_5"), SubResource("entry_6"), SubResource("entry_7")])
+events = Array[ExtResource("3_event")]([SubResource("event_0"), SubResource("event_1"), SubResource("event_2"), SubResource("event_3"), SubResource("event_4"), SubResource("event_5"), SubResource("event_6"), SubResource("event_7"), SubResource("event_8"), SubResource("event_9"), SubResource("event_10"), SubResource("event_11"), SubResource("event_12"), SubResource("event_13"), SubResource("event_14"), SubResource("event_15"), SubResource("event_16"), SubResource("event_17"), SubResource("event_18"), SubResource("event_19"), SubResource("event_20"), SubResource("event_21"), SubResource("event_22"), SubResource("event_23"), SubResource("event_24"), SubResource("event_25"), SubResource("event_26"), SubResource("event_27"), SubResource("event_28")])
+hp_growth_per_minute = 0.12
+elite_hp_mult = 25.0
+elite_scale = 1.6
+elite_xp_mult = 10.0
+final_minute = 30.0
+reaper = ExtResource("e_knellwraith")
+reaper_interval = 60.0

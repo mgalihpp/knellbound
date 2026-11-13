@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="PassiveData" format=3]
+
+[ext_resource type="Script" path="res://passives/passive_data.gd" id="1_script"]
+[ext_resource type="Script" path="res://core/stat_modifier.gd" id="2_mod"]
+[ext_resource type="Texture2D" path="res://art/icons/hunters_eye.png" id="3_icon"]
+
+[sub_resource type="Resource" id="Resource_mod0"]
+script = ExtResource("2_mod")
+stat = 12
+flat = 0.05
+
+[sub_resource type="Resource" id="Resource_mod1"]
+script = ExtResource("2_mod")
+stat = 13
+flat = 0.1
+
+[resource]
+script = ExtResource("1_script")
+id = &"hunters_eye"
+display_name = "Hunter's Eye"
+description = "Sees the gap in every hide. +5% crit chance, +10% crit damage."
+icon = ExtResource("3_icon")
+max_level = 5
+modifiers = Array[ExtResource("2_mod")]([SubResource("Resource_mod0"), SubResource("Resource_mod1")])

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://enemies/enemy_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"acolyte"
+display_name = "Crypt Acolyte"
+behavior = 2
+sprite_row = 4
+max_hp = 22.0
+move_speed = 2.1
+contact_damage = 6.0
+radius = 0.4
+scale = 1.0
+xp_value = 2.0
+preferred_range = 7.5
+fire_interval = 2.8
+shot_speed = 5.5
+shot_damage = 10.0
+shot_row = 0
+shot_size = 0.8

@@ -1,0 +1,17 @@
+[remap]
+
+importer="font_data_bmfont"
+type="FontFile"
+uid="uid://cigok053qbcq8"
+path="res://.godot/imported/font.fnt-14308a5c9862a121c003e84afdeaef1e.fontdata"
+
+[deps]
+
+source_file="res://art/ui/font.fnt"
+dest_files=["res://.godot/imported/font.fnt-14308a5c9862a121c003e84afdeaef1e.fontdata"]
+
+[params]
+
+fallbacks=[]
+compress=true
+scaling_mode=1

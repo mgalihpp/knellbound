@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="CharacterData" format=3]
+
+[ext_resource type="Script" path="res://characters/character_data.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://art/sprites/player_hunter.png" id="2_sheet"]
+[ext_resource type="Resource" path="res://data/weapons/holy_aura.tres" id="3_weapon"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"hunter"
+display_name = "Hunter"
+epithet = "Wandering hunter"
+description = "A vampire hunter with a blessed ward. Steady, sturdy, never in a hurry."
+sprite_sheet = ExtResource("2_sheet")
+max_hp = 100.0
+move_speed = 5.0
+starting_weapon = ExtResource("3_weapon")

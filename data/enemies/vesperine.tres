@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="BossData" format=3]
+
+[ext_resource type="Script" path="res://enemies/boss_data.gd" id="1_script"]
+[ext_resource type="Resource" path="res://data/enemies/bat.tres" id="summon"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"vesperine"
+display_name = "Vesperine"
+title = "Vesperine, Bride of Thorns"
+behavior = 4
+sprite_row = 2
+large_sprite = true
+max_hp = 4500.0
+move_speed = 2.4
+contact_damage = 30.0
+radius = 1.0
+scale = 1.35
+knockback_resist = 1.0
+xp_value = 120.0
+shot_speed = 7.0
+shot_damage = 15.0
+shot_row = 2
+shot_size = 0.9
+pattern = Array[int]([0, 1, 0, 2])
+chase_time = 2.0
+telegraph_time = 0.6
+dash_speed = 18.0
+dash_time = 0.5
+radial_count = 20
+radial_volleys = 4
+radial_interval = 0.28
+summon = ExtResource("summon")
+summon_count = 16
+summon_radius = 3.5

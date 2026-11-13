@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PickupData" format=3]
+
+[ext_resource type="Script" path="res://pickups/pickup_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"blessed_bomb"
+display_name = "Blessed Bomb"
+effect = 3
+amount = 150.0
+sprite_row = 4
+scale = 0.95
+drop_weight = 0.8
+luck_weighted = true
+magnetic = false
+collect_effect = -1

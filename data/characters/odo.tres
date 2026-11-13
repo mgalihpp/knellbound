@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="CharacterData" format=3]
+
+[ext_resource type="Script" path="res://characters/character_data.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://art/sprites/player_odo.png" id="2_sheet"]
+[ext_resource type="Resource" path="res://data/weapons/hallowed_vial.tres" id="3_weapon"]
+[ext_resource type="Script" path="res://core/stat_modifier.gd" id="4_mod"]
+
+[sub_resource type="Resource" id="Resource_mod0"]
+script = ExtResource("4_mod")
+stat = 1
+percent = 0.15
+
+[sub_resource type="Resource" id="Resource_mod1"]
+script = ExtResource("4_mod")
+stat = 8
+flat = 0.3
+
+[resource]
+script = ExtResource("1_script")
+id = &"odo"
+display_name = "Brother Odo"
+epithet = "Alchemist friar"
+description = "A friar who brews holy water stronger than any priest. Slow, hardy, mends as he walks."
+sprite_sheet = ExtResource("2_sheet")
+max_hp = 110.0
+move_speed = 4.6
+starting_weapon = ExtResource("3_weapon")
+stat_modifiers = Array[ExtResource("4_mod")]([SubResource("Resource_mod0"), SubResource("Resource_mod1")])
+unlock = 2
+unlock_value = 3000

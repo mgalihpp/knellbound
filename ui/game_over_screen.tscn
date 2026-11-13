@@ -1,0 +1,237 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://ui/game_over_screen.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://art/ui/icon_clock.png" id="2_clock"]
+[ext_resource type="Texture2D" path="res://art/ui/icon_level.png" id="3_level"]
+[ext_resource type="Texture2D" path="res://art/ui/icon_skull.png" id="4_skull"]
+[ext_resource type="Texture2D" path="res://art/ui/icon_coin.png" id="5_coin"]
+
+[node name="GameOverScreen" type="CanvasLayer"]
+process_mode = 3
+layer = 20
+script = ExtResource("1_script")
+
+[node name="Dim" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.08, 0.0, 0.03, 0.78)
+
+[node name="Center" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BloodPanel"
+
+[node name="VBox" type="VBoxContainer" parent="Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Center/Panel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "FALLEN"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Center/Panel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "The night claims another hunter."
+horizontal_alignment = 1
+
+[node name="Body" type="HBoxContainer" parent="Center/Panel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="RunPanel" type="PanelContainer" parent="Center/Panel/VBox/Body"]
+layout_mode = 2
+theme_type_variation = &"InsetPanel"
+
+[node name="VBox" type="VBoxContainer" parent="Center/Panel/VBox/Body/RunPanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RunHeader" type="Label" parent="Center/Panel/VBox/Body/RunPanel/VBox"]
+layout_mode = 2
+theme_type_variation = &"GoldLabel"
+text = "This run"
+
+[node name="Grid" type="GridContainer" parent="Center/Panel/VBox/Body/RunPanel/VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 6
+columns = 3
+
+[node name="TimeIcon" type="TextureRect" parent="Center/Panel/VBox/Body/RunPanel/VBox/Grid"]
+layout_mode = 2
+texture = ExtResource("2_clock")
+stretch_mode = 3
+
+[node name="TimeName" type="Label" parent="Center/Panel/VBox/Body/RunPanel/VBox/Grid"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "Survived"
+
+[node name="TimeValue" type="Label" parent="Center/Panel/VBox/Body/RunPanel/VBox/Grid"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+text = "00:00"
+horizontal_alignment = 2
+
+[node name="LevelIcon" type="TextureRect" parent="Center/Panel/VBox/Body/RunPanel/VBox/Grid"]
+self_modulate = Color(0.561, 0.847, 1, 1)
+layout_mode = 2
+texture = ExtResource("3_level")
+stretch_mode = 3
+
+[node name="LevelName" type="Label" parent="Center/Panel/VBox/Body/RunPanel/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "Level"
+
+[node name="LevelValue" type="Label" parent="Center/Panel/VBox/Body/RunPanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "1"
+horizontal_alignment = 2
+
+[node name="KillsIcon" type="TextureRect" parent="Center/Panel/VBox/Body/RunPanel/VBox/Grid"]
+layout_mode = 2
+texture = ExtResource("4_skull")
+stretch_mode = 3
+
+[node name="KillsName" type="Label" parent="Center/Panel/VBox/Body/RunPanel/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "Kills"
+
+[node name="KillsValue" type="Label" parent="Center/Panel/VBox/Body/RunPanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "0"
+horizontal_alignment = 2
+
+[node name="CoinsIcon" type="TextureRect" parent="Center/Panel/VBox/Body/RunPanel/VBox/Grid"]
+layout_mode = 2
+texture = ExtResource("5_coin")
+stretch_mode = 3
+
+[node name="CoinsName" type="Label" parent="Center/Panel/VBox/Body/RunPanel/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "Coins"
+
+[node name="CoinsValue" type="Label" parent="Center/Panel/VBox/Body/RunPanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"GoldLabel"
+text = "0"
+horizontal_alignment = 2
+
+[node name="FoeHeader" type="Label" parent="Center/Panel/VBox/Body/RunPanel/VBox"]
+layout_mode = 2
+theme_type_variation = &"GoldLabel"
+text = "Most slain"
+
+[node name="FoeRow" type="HBoxContainer" parent="Center/Panel/VBox/Body/RunPanel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="FoeIcon" type="TextureRect" parent="Center/Panel/VBox/Body/RunPanel/VBox/FoeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(68, 68)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="FoeLabel" type="Label" parent="Center/Panel/VBox/Body/RunPanel/VBox/FoeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "none"
+vertical_alignment = 1
+
+[node name="DamagePanel" type="PanelContainer" parent="Center/Panel/VBox/Body"]
+custom_minimum_size = Vector2(440, 0)
+layout_mode = 2
+theme_type_variation = &"InsetPanel"
+
+[node name="VBox" type="VBoxContainer" parent="Center/Panel/VBox/Body/DamagePanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DamageHeader" type="Label" parent="Center/Panel/VBox/Body/DamagePanel/VBox"]
+layout_mode = 2
+theme_type_variation = &"GoldLabel"
+text = "Damage by weapon"
+
+[node name="DamageRows" type="VBoxContainer" parent="Center/Panel/VBox/Body/DamagePanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Reward" type="PanelContainer" parent="Center/Panel/VBox"]
+layout_mode = 2
+theme_type_variation = &"InsetPanel"
+
+[node name="VBox" type="VBoxContainer" parent="Center/Panel/VBox/Reward"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="BankRow" type="HBoxContainer" parent="Center/Panel/VBox/Reward/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="BankIcon" type="TextureRect" parent="Center/Panel/VBox/Reward/VBox/BankRow"]
+layout_mode = 2
+texture = ExtResource("5_coin")
+stretch_mode = 3
+
+[node name="BankLabel" type="Label" parent="Center/Panel/VBox/Reward/VBox/BankRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"GoldLabel"
+text = "+0 coins banked  ·  0 in the purse"
+
+[node name="BestLabel" type="Label" parent="Center/Panel/VBox/Reward/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SmallLabel"
+theme_override_colors/font_color = Color(0.561, 0.847, 1, 1)
+text = "New longest night!"
+horizontal_alignment = 1
+
+[node name="Unlocks" type="HBoxContainer" parent="Center/Panel/VBox/Reward/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 18
+alignment = 1
+
+[node name="Buttons" type="HBoxContainer" parent="Center/Panel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="RetryButton" type="Button" parent="Center/Panel/VBox/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 44)
+layout_mode = 2
+text = "Retry"
+
+[node name="TitleButton" type="Button" parent="Center/Panel/VBox/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 44)
+layout_mode = 2
+text = "Title"

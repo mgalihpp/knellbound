@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_data.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://art/icons/font_of_saints.png" id="2_icon"]
+[ext_resource type="PackedScene" path="res://weapons/vial/font_of_saints.tscn" id="3_scene"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"font_of_saints"
+display_name = "Font of Saints"
+description = "Golden water splashes in threes and creeps toward you."
+icon = ExtResource("2_icon")
+scene = ExtResource("3_scene")
+is_evolution = true
+damage = 14.0
+cooldown = 2.4
+area = 1.6
+knockback = 0.0
+amount = 3
+projectile_speed = 0.0
+duration = 3.6
+hit_interval = 0.3

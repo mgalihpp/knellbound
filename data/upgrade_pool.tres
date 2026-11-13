@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="UpgradePool" format=3]
+
+[ext_resource type="Script" path="res://core/upgrade_pool.gd" id="1_script"]
+[ext_resource type="Script" path="res://weapons/weapon_data.gd" id="2_weapon_data"]
+[ext_resource type="Script" path="res://passives/passive_data.gd" id="3_passive_data"]
+[ext_resource type="Script" path="res://passives/evolution_data.gd" id="4_evolution_data"]
+[ext_resource type="Texture2D" path="res://art/icons/heart_locket.png" id="5_heal_icon"]
+[ext_resource type="Resource" path="res://data/weapons/holy_aura.tres" id="w_holy_aura"]
+[ext_resource type="Resource" path="res://data/weapons/silverthorn_knives.tres" id="w_silverthorn_knives"]
+[ext_resource type="Resource" path="res://data/weapons/vesper_beads.tres" id="w_vesper_beads"]
+[ext_resource type="Resource" path="res://data/weapons/hallowed_vial.tres" id="w_hallowed_vial"]
+[ext_resource type="Resource" path="res://data/weapons/pilgrims_cross.tres" id="w_pilgrims_cross"]
+[ext_resource type="Resource" path="res://data/passives/bloodied_blade.tres" id="p_bloodied_blade"]
+[ext_resource type="Resource" path="res://data/passives/iron_ward.tres" id="p_iron_ward"]
+[ext_resource type="Resource" path="res://data/passives/winged_boots.tres" id="p_winged_boots"]
+[ext_resource type="Resource" path="res://data/passives/lodestone.tres" id="p_lodestone"]
+[ext_resource type="Resource" path="res://data/passives/sand_clock.tres" id="p_sand_clock"]
+[ext_resource type="Resource" path="res://data/passives/heart_locket.tres" id="p_heart_locket"]
+[ext_resource type="Resource" path="res://data/passives/smoking_censer.tres" id="p_smoking_censer"]
+[ext_resource type="Resource" path="res://data/passives/silvered_mirror.tres" id="p_silvered_mirror"]
+[ext_resource type="Resource" path="res://data/passives/raven_feather.tres" id="p_raven_feather"]
+[ext_resource type="Resource" path="res://data/passives/votive_candle.tres" id="p_votive_candle"]
+[ext_resource type="Resource" path="res://data/passives/mandrake_root.tres" id="p_mandrake_root"]
+[ext_resource type="Resource" path="res://data/passives/lucky_horseshoe.tres" id="p_lucky_horseshoe"]
+[ext_resource type="Resource" path="res://data/passives/hunters_eye.tres" id="p_hunters_eye"]
+[ext_resource type="Resource" path="res://data/evolutions/seraphs_halo.tres" id="e_seraphs_halo"]
+[ext_resource type="Resource" path="res://data/evolutions/thornstorm.tres" id="e_thornstorm"]
+[ext_resource type="Resource" path="res://data/evolutions/eternal_rosary.tres" id="e_eternal_rosary"]
+[ext_resource type="Resource" path="res://data/evolutions/font_of_saints.tres" id="e_font_of_saints"]
+[ext_resource type="Resource" path="res://data/evolutions/radiant_crucifix.tres" id="e_radiant_crucifix"]
+
+[resource]
+script = ExtResource("1_script")
+weapons = Array[ExtResource("2_weapon_data")]([ExtResource("w_holy_aura"), ExtResource("w_silverthorn_knives"), ExtResource("w_vesper_beads"), ExtResource("w_hallowed_vial"), ExtResource("w_pilgrims_cross")])
+passives = Array[ExtResource("3_passive_data")]([ExtResource("p_bloodied_blade"), ExtResource("p_iron_ward"), ExtResource("p_winged_boots"), ExtResource("p_lodestone"), ExtResource("p_sand_clock"), ExtResource("p_heart_locket"), ExtResource("p_smoking_censer"), ExtResource("p_silvered_mirror"), ExtResource("p_raven_feather"), ExtResource("p_votive_candle"), ExtResource("p_mandrake_root"), ExtResource("p_lucky_horseshoe"), ExtResource("p_hunters_eye")])
+evolutions = Array[ExtResource("4_evolution_data")]([ExtResource("e_seraphs_halo"), ExtResource("e_thornstorm"), ExtResource("e_eternal_rosary"), ExtResource("e_font_of_saints"), ExtResource("e_radiant_crucifix")])
+heal_icon = ExtResource("5_heal_icon")

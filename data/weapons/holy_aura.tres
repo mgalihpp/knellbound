@@ -1,0 +1,56 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_data.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://art/icons/holy_aura.png" id="2_icon"]
+[ext_resource type="PackedScene" path="res://weapons/aura/aura_weapon.tscn" id="3_scene"]
+[ext_resource type="Script" path="res://weapons/weapon_level.gd" id="4_level"]
+
+[sub_resource type="Resource" id="Resource_lv2"]
+script = ExtResource("4_level")
+description = "+2 damage."
+damage = 2.0
+
+[sub_resource type="Resource" id="Resource_lv3"]
+script = ExtResource("4_level")
+description = "Aura grows 15% wider."
+area = 0.15
+
+[sub_resource type="Resource" id="Resource_lv4"]
+script = ExtResource("4_level")
+description = "Pulses 10% faster."
+cooldown = -0.1
+
+[sub_resource type="Resource" id="Resource_lv5"]
+script = ExtResource("4_level")
+description = "+2 damage, +10% area."
+damage = 2.0
+area = 0.1
+
+[sub_resource type="Resource" id="Resource_lv6"]
+script = ExtResource("4_level")
+description = "Pulses 10% faster."
+cooldown = -0.1
+
+[sub_resource type="Resource" id="Resource_lv7"]
+script = ExtResource("4_level")
+description = "+3 damage."
+damage = 3.0
+
+[sub_resource type="Resource" id="Resource_lv8"]
+script = ExtResource("4_level")
+description = "+3 damage, aura grows 20% wider."
+damage = 3.0
+area = 0.2
+
+[resource]
+script = ExtResource("1_script")
+id = &"holy_aura"
+display_name = "Holy Aura"
+description = "Damages and repels every enemy close to you."
+icon = ExtResource("2_icon")
+scene = ExtResource("3_scene")
+damage = 6.0
+cooldown = 0.6
+area = 2.6
+knockback = 5.0
+levels = Array[ExtResource("4_level")]([SubResource("Resource_lv2"), SubResource("Resource_lv3"), SubResource("Resource_lv4"), SubResource("Resource_lv5"), SubResource("Resource_lv6"), SubResource("Resource_lv7"), SubResource("Resource_lv8")])

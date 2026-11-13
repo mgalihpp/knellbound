@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PickupData" format=3]
+
+[ext_resource type="Script" path="res://pickups/pickup_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"roast_fowl"
+display_name = "Roast Fowl"
+effect = 1
+amount = 0.5
+sprite_row = 2
+scale = 0.95
+drop_weight = 1.5
+luck_weighted = true
+magnetic = false
+collect_effect = 5

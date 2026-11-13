@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="DropTable" format=3]
+
+[ext_resource type="Script" path="res://pickups/drop_table.gd" id="1_script"]
+[ext_resource type="Script" path="res://pickups/pickup_data.gd" id="1_pickup"]
+[ext_resource type="Resource" path="res://data/pickups/communion_bread.tres" id="2_communion_bread"]
+[ext_resource type="Resource" path="res://data/pickups/roast_fowl.tres" id="3_roast_fowl"]
+[ext_resource type="Resource" path="res://data/pickups/lodestone_magnet.tres" id="4_lodestone_magnet"]
+[ext_resource type="Resource" path="res://data/pickups/blessed_bomb.tres" id="5_blessed_bomb"]
+[ext_resource type="Resource" path="res://data/pickups/gold_coin.tres" id="6_gold_coin"]
+[ext_resource type="Resource" path="res://data/pickups/coin_pouch.tres" id="7_coin_pouch"]
+
+[resource]
+script = ExtResource("1_script")
+chance = 0.004
+items = Array[ExtResource("1_pickup")]([ExtResource("2_communion_bread"), ExtResource("3_roast_fowl"), ExtResource("4_lodestone_magnet"), ExtResource("5_blessed_bomb"), ExtResource("6_gold_coin"), ExtResource("7_coin_pouch")])

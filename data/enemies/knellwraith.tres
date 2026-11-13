@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://enemies/enemy_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"knellwraith"
+display_name = "Knellwraith"
+behavior = 0
+sprite_row = 3
+large_sprite = true
+max_hp = 1000000000.0
+move_speed = 9.0
+contact_damage = 99999.0
+radius = 0.9
+scale = 1.35
+knockback_resist = 1.0
+xp_value = 0.0
+death_effect = 2

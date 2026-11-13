@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://enemies/enemy_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"wisp"
+display_name = "Grave Wisp"
+behavior = 3
+sprite_row = 5
+max_hp = 10.0
+move_speed = 2.4
+contact_damage = 7.0
+radius = 0.38
+scale = 1.0
+knockback_resist = 0.5
+xp_value = 1.0
+death_effect = 2

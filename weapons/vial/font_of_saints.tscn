@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://weapons/vial/vial_weapon.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://art/sprites/saints_font.png" id="2_pool"]
+
+[node name="FontOfSaints" type="Node3D"]
+script = ExtResource("1_script")
+sprite_row = 7
+pool_sheet = ExtResource("2_pool")
+splash_count = 3
+drift_speed = 0.7

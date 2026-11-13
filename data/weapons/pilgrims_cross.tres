@@ -1,0 +1,62 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_data.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://art/icons/pilgrims_cross.png" id="2_icon"]
+[ext_resource type="PackedScene" path="res://weapons/cross/cross_weapon.tscn" id="3_scene"]
+[ext_resource type="Script" path="res://weapons/weapon_level.gd" id="4_level"]
+
+[sub_resource type="Resource" id="Resource_lv2"]
+script = ExtResource("4_level")
+description = "+5 damage."
+damage = 5.0
+
+[sub_resource type="Resource" id="Resource_lv3"]
+script = ExtResource("4_level")
+description = "Ricochets 2 more times."
+pierce = 2
+
+[sub_resource type="Resource" id="Resource_lv4"]
+script = ExtResource("4_level")
+description = "Throws 1 more cross."
+amount = 1
+
+[sub_resource type="Resource" id="Resource_lv5"]
+script = ExtResource("4_level")
+description = "Flies 20% faster, 15% bigger."
+projectile_speed = 0.2
+area = 0.15
+
+[sub_resource type="Resource" id="Resource_lv6"]
+script = ExtResource("4_level")
+description = "Ricochets 2 more times, +5 damage."
+pierce = 2
+damage = 5.0
+
+[sub_resource type="Resource" id="Resource_lv7"]
+script = ExtResource("4_level")
+description = "Throws 1 more cross."
+amount = 1
+
+[sub_resource type="Resource" id="Resource_lv8"]
+script = ExtResource("4_level")
+description = "Ricochets 3 more times, +8 damage, 15% faster."
+pierce = 3
+damage = 8.0
+cooldown = -0.15
+
+[resource]
+script = ExtResource("1_script")
+id = &"pilgrims_cross"
+display_name = "Pilgrim's Cross"
+description = "A spinning cross that ricochets between enemies and off the edges of sight."
+icon = ExtResource("2_icon")
+scene = ExtResource("3_scene")
+damage = 12.0
+cooldown = 2.4
+area = 0.55
+knockback = 2.5
+amount = 1
+projectile_speed = 11.0
+duration = 4.0
+pierce = 3
+levels = Array[ExtResource("4_level")]([SubResource("Resource_lv2"), SubResource("Resource_lv3"), SubResource("Resource_lv4"), SubResource("Resource_lv5"), SubResource("Resource_lv6"), SubResource("Resource_lv7"), SubResource("Resource_lv8")])

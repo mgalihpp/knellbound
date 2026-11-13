@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_data.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://art/icons/eternal_rosary.png" id="2_icon"]
+[ext_resource type="PackedScene" path="res://weapons/orbit/eternal_rosary.tscn" id="3_scene"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"eternal_rosary"
+display_name = "Eternal Rosary"
+description = "Two rings of garnet beads that never stop turning."
+icon = ExtResource("2_icon")
+scene = ExtResource("3_scene")
+is_evolution = true
+damage = 22.0
+cooldown = 1.0
+area = 2.9
+knockback = 4.5
+amount = 6
+projectile_speed = 4.6
+duration = 1.0
+hit_interval = 0.45

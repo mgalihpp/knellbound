@@ -1,0 +1,138 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://ui/pause_menu.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://ui/options_panel.tscn" id="2_options"]
+
+[node name="PauseMenu" type="CanvasLayer"]
+process_mode = 3
+layer = 20
+script = ExtResource("1_script")
+
+[node name="Dim" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.03, 0.02, 0.06, 0.72)
+
+[node name="Center" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="HBox" type="HBoxContainer" parent="Center"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Menu" type="PanelContainer" parent="Center/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="VBox" type="VBoxContainer" parent="Center/HBox/Menu"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="Label" parent="Center/HBox/Menu/VBox"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+text = "PAUSED"
+horizontal_alignment = 1
+
+[node name="RunLabel" type="Label" parent="Center/HBox/Menu/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "00:00"
+horizontal_alignment = 1
+
+[node name="Gap" type="Control" parent="Center/HBox/Menu/VBox"]
+custom_minimum_size = Vector2(0, 6)
+layout_mode = 2
+
+[node name="ResumeButton" type="Button" parent="Center/HBox/Menu/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+text = "Resume"
+
+[node name="OptionsButton" type="Button" parent="Center/HBox/Menu/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+text = "Options"
+
+[node name="RestartButton" type="Button" parent="Center/HBox/Menu/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+text = "Restart"
+
+[node name="QuitButton" type="Button" parent="Center/HBox/Menu/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+text = "Quit to Title"
+
+[node name="Hint" type="Label" parent="Center/HBox/Menu/VBox"]
+layout_mode = 2
+theme_type_variation = &"SmallLabel"
+theme_override_colors/font_color = Color(0.608, 0.565, 0.69, 1)
+text = "Esc / Start / (B) resume  ·  R restart"
+horizontal_alignment = 1
+
+[node name="Options" parent="Center/HBox" instance=ExtResource("2_options")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="Info" type="PanelContainer" parent="Center/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Center/HBox/Info"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="StatsHeader" type="Label" parent="Center/HBox/Info/VBox"]
+layout_mode = 2
+theme_type_variation = &"GoldLabel"
+text = "Hunter"
+
+[node name="StatsPanel" type="PanelContainer" parent="Center/HBox/Info/VBox"]
+layout_mode = 2
+theme_type_variation = &"InsetPanel"
+
+[node name="StatsGrid" type="GridContainer" parent="Center/HBox/Info/VBox/StatsPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 24
+theme_override_constants/v_separation = 2
+columns = 4
+
+[node name="WeaponsHeader" type="Label" parent="Center/HBox/Info/VBox"]
+layout_mode = 2
+theme_type_variation = &"GoldLabel"
+text = "Weapons"
+
+[node name="WeaponsGrid" type="GridContainer" parent="Center/HBox/Info/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 6
+columns = 2
+
+[node name="PassivesHeader" type="Label" parent="Center/HBox/Info/VBox"]
+layout_mode = 2
+theme_type_variation = &"GoldLabel"
+text = "Relics"
+
+[node name="PassivesRow" type="HBoxContainer" parent="Center/HBox/Info/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6

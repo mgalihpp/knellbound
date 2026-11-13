@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://weapons/knives/knives_weapon.gd" id="1_script"]
+
+[node name="Thornstorm" type="Node3D"]
+script = ExtResource("1_script")
+sprite_row = 4
+sprite_scale = 1.15
+burst_interval = 0.05
+fan = 3
+fan_degrees = 13.0

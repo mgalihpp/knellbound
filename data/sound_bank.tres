@@ -1,0 +1,234 @@
+[gd_resource type="Resource" script_class="SoundBank" format=3]
+
+[ext_resource type="Script" path="res://audio/sound_bank.gd" id="1_bank"]
+[ext_resource type="Script" path="res://audio/sound_def.gd" id="2_def"]
+[ext_resource type="AudioStream" path="res://audio/sfx/hit.wav" id="s_hit"]
+[ext_resource type="AudioStream" path="res://audio/sfx/kill.wav" id="s_kill"]
+[ext_resource type="AudioStream" path="res://audio/sfx/gem.wav" id="s_gem"]
+[ext_resource type="AudioStream" path="res://audio/sfx/coin.wav" id="s_coin"]
+[ext_resource type="AudioStream" path="res://audio/sfx/heal.wav" id="s_heal"]
+[ext_resource type="AudioStream" path="res://audio/sfx/pickup.wav" id="s_pickup"]
+[ext_resource type="AudioStream" path="res://audio/sfx/level_up.wav" id="s_level_up"]
+[ext_resource type="AudioStream" path="res://audio/sfx/chest_open.wav" id="s_chest_open"]
+[ext_resource type="AudioStream" path="res://audio/sfx/bomb.wav" id="s_bomb"]
+[ext_resource type="AudioStream" path="res://audio/sfx/player_hurt.wav" id="s_player_hurt"]
+[ext_resource type="AudioStream" path="res://audio/sfx/boss_spawn.wav" id="s_boss_spawn"]
+[ext_resource type="AudioStream" path="res://audio/sfx/game_over.wav" id="s_game_over"]
+[ext_resource type="AudioStream" path="res://audio/sfx/revive.wav" id="s_revive"]
+[ext_resource type="AudioStream" path="res://audio/sfx/ui_move.wav" id="s_ui_move"]
+[ext_resource type="AudioStream" path="res://audio/sfx/ui_select.wav" id="s_ui_select"]
+[ext_resource type="AudioStream" path="res://audio/sfx/ui_back.wav" id="s_ui_back"]
+[ext_resource type="AudioStream" path="res://audio/sfx/buy.wav" id="s_buy"]
+[ext_resource type="AudioStream" path="res://audio/sfx/deny.wav" id="s_deny"]
+[ext_resource type="AudioStream" path="res://audio/sfx/unlock.wav" id="s_unlock"]
+[ext_resource type="AudioStream" path="res://audio/bgm/title.wav" id="m_title"]
+[ext_resource type="AudioStream" path="res://audio/bgm/night.wav" id="m_night"]
+
+[sub_resource type="Resource" id="d_hit"]
+script = ExtResource("2_def")
+id = &"hit"
+streams = Array[AudioStream]([ExtResource("s_hit")])
+volume_db = -8.0
+max_concurrent = 4
+min_interval = 0.045
+pitch_jitter = 0.12
+priority = 0
+
+[sub_resource type="Resource" id="d_kill"]
+script = ExtResource("2_def")
+id = &"kill"
+streams = Array[AudioStream]([ExtResource("s_kill")])
+volume_db = -7.0
+max_concurrent = 4
+min_interval = 0.04
+pitch_jitter = 0.1
+priority = 1
+
+[sub_resource type="Resource" id="d_gem"]
+script = ExtResource("2_def")
+id = &"gem"
+streams = Array[AudioStream]([ExtResource("s_gem")])
+volume_db = -11.0
+max_concurrent = 3
+min_interval = 0.05
+pitch_jitter = 0.06
+priority = 1
+
+[sub_resource type="Resource" id="d_coin"]
+script = ExtResource("2_def")
+id = &"coin"
+streams = Array[AudioStream]([ExtResource("s_coin")])
+volume_db = -6.0
+max_concurrent = 2
+min_interval = 0.06
+pitch_jitter = 0.04
+priority = 2
+
+[sub_resource type="Resource" id="d_heal"]
+script = ExtResource("2_def")
+id = &"heal"
+streams = Array[AudioStream]([ExtResource("s_heal")])
+volume_db = -4.0
+max_concurrent = 1
+min_interval = 0.1
+pitch_jitter = 0.0
+priority = 3
+
+[sub_resource type="Resource" id="d_pickup"]
+script = ExtResource("2_def")
+id = &"pickup"
+streams = Array[AudioStream]([ExtResource("s_pickup")])
+volume_db = -4.0
+max_concurrent = 1
+min_interval = 0.1
+pitch_jitter = 0.02
+priority = 3
+
+[sub_resource type="Resource" id="d_level_up"]
+script = ExtResource("2_def")
+id = &"level_up"
+streams = Array[AudioStream]([ExtResource("s_level_up")])
+volume_db = -3.0
+max_concurrent = 1
+min_interval = 0.2
+pitch_jitter = 0.0
+priority = 5
+
+[sub_resource type="Resource" id="d_chest_open"]
+script = ExtResource("2_def")
+id = &"chest_open"
+streams = Array[AudioStream]([ExtResource("s_chest_open")])
+volume_db = -3.0
+max_concurrent = 1
+min_interval = 0.2
+pitch_jitter = 0.0
+priority = 5
+
+[sub_resource type="Resource" id="d_bomb"]
+script = ExtResource("2_def")
+id = &"bomb"
+streams = Array[AudioStream]([ExtResource("s_bomb")])
+volume_db = -1.0
+max_concurrent = 1
+min_interval = 0.15
+pitch_jitter = 0.04
+priority = 5
+
+[sub_resource type="Resource" id="d_player_hurt"]
+script = ExtResource("2_def")
+id = &"player_hurt"
+streams = Array[AudioStream]([ExtResource("s_player_hurt")])
+volume_db = -4.0
+max_concurrent = 1
+min_interval = 0.12
+pitch_jitter = 0.08
+priority = 4
+
+[sub_resource type="Resource" id="d_boss_spawn"]
+script = ExtResource("2_def")
+id = &"boss_spawn"
+streams = Array[AudioStream]([ExtResource("s_boss_spawn")])
+volume_db = -1.0
+max_concurrent = 1
+min_interval = 0.5
+pitch_jitter = 0.0
+priority = 6
+
+[sub_resource type="Resource" id="d_game_over"]
+script = ExtResource("2_def")
+id = &"game_over"
+streams = Array[AudioStream]([ExtResource("s_game_over")])
+volume_db = -2.0
+max_concurrent = 1
+min_interval = 0.5
+pitch_jitter = 0.0
+priority = 6
+
+[sub_resource type="Resource" id="d_revive"]
+script = ExtResource("2_def")
+id = &"revive"
+streams = Array[AudioStream]([ExtResource("s_revive")])
+volume_db = -2.0
+max_concurrent = 1
+min_interval = 0.5
+pitch_jitter = 0.0
+priority = 6
+
+[sub_resource type="Resource" id="d_ui_move"]
+script = ExtResource("2_def")
+id = &"ui_move"
+streams = Array[AudioStream]([ExtResource("s_ui_move")])
+volume_db = -12.0
+max_concurrent = 2
+min_interval = 0.03
+pitch_jitter = 0.03
+priority = 7
+
+[sub_resource type="Resource" id="d_ui_select"]
+script = ExtResource("2_def")
+id = &"ui_select"
+streams = Array[AudioStream]([ExtResource("s_ui_select")])
+volume_db = -8.0
+max_concurrent = 2
+min_interval = 0.05
+pitch_jitter = 0.0
+priority = 7
+
+[sub_resource type="Resource" id="d_ui_back"]
+script = ExtResource("2_def")
+id = &"ui_back"
+streams = Array[AudioStream]([ExtResource("s_ui_back")])
+volume_db = -9.0
+max_concurrent = 2
+min_interval = 0.05
+pitch_jitter = 0.0
+priority = 7
+
+[sub_resource type="Resource" id="d_buy"]
+script = ExtResource("2_def")
+id = &"buy"
+streams = Array[AudioStream]([ExtResource("s_buy")])
+volume_db = -5.0
+max_concurrent = 1
+min_interval = 0.08
+pitch_jitter = 0.0
+priority = 7
+
+[sub_resource type="Resource" id="d_deny"]
+script = ExtResource("2_def")
+id = &"deny"
+streams = Array[AudioStream]([ExtResource("s_deny")])
+volume_db = -7.0
+max_concurrent = 1
+min_interval = 0.12
+pitch_jitter = 0.0
+priority = 7
+
+[sub_resource type="Resource" id="d_unlock"]
+script = ExtResource("2_def")
+id = &"unlock"
+streams = Array[AudioStream]([ExtResource("s_unlock")])
+volume_db = -3.0
+max_concurrent = 1
+min_interval = 0.3
+pitch_jitter = 0.0
+priority = 7
+
+[sub_resource type="Resource" id="d_m_title"]
+script = ExtResource("2_def")
+id = &"title"
+streams = Array[AudioStream]([ExtResource("m_title")])
+volume_db = -9.0
+pitch_jitter = 0.0
+
+[sub_resource type="Resource" id="d_m_night"]
+script = ExtResource("2_def")
+id = &"night"
+streams = Array[AudioStream]([ExtResource("m_night")])
+volume_db = -10.0
+pitch_jitter = 0.0
+
+[resource]
+script = ExtResource("1_bank")
+sfx = Array[ExtResource("2_def")]([SubResource("d_hit"), SubResource("d_kill"), SubResource("d_gem"), SubResource("d_coin"), SubResource("d_heal"), SubResource("d_pickup"), SubResource("d_level_up"), SubResource("d_chest_open"), SubResource("d_bomb"), SubResource("d_player_hurt"), SubResource("d_boss_spawn"), SubResource("d_game_over"), SubResource("d_revive"), SubResource("d_ui_move"), SubResource("d_ui_select"), SubResource("d_ui_back"), SubResource("d_buy"), SubResource("d_deny"), SubResource("d_unlock")])
+music = Array[ExtResource("2_def")]([SubResource("d_m_title"), SubResource("d_m_night")])

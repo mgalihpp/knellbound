@@ -1,0 +1,66 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://ui/options_panel.gd" id="1_script"]
+
+[node name="OptionsPanel" type="PanelContainer"]
+custom_minimum_size = Vector2(560, 0)
+theme_type_variation = &"HolyPanel"
+script = ExtResource("1_script")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="Label" parent="VBox"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+text = "OPTIONS"
+horizontal_alignment = 1
+
+[node name="AudioLabel" type="Label" parent="VBox"]
+layout_mode = 2
+theme_type_variation = &"GoldLabel"
+text = "Volume"
+
+[node name="VolumeGrid" type="GridContainer" parent="VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 8
+columns = 3
+
+[node name="AudioNote" type="Label" parent="VBox"]
+layout_mode = 2
+theme_type_variation = &"SmallLabel"
+theme_override_colors/font_color = Color(0.608, 0.565, 0.69, 1)
+text = "Saved with your progress."
+
+[node name="Sep" type="HSeparator" parent="VBox"]
+layout_mode = 2
+
+[node name="GameLabel" type="Label" parent="VBox"]
+layout_mode = 2
+theme_type_variation = &"GoldLabel"
+text = "Game"
+
+[node name="ShakeBox" type="CheckBox" parent="VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Screen shake"
+
+[node name="NumbersBox" type="CheckBox" parent="VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Damage numbers"
+
+[node name="FullscreenBox" type="CheckBox" parent="VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Fullscreen"
+
+[node name="BackButton" type="Button" parent="VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 44)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Back"

@@ -1,0 +1,154 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://core/game.gd" id="1_game"]
+[ext_resource type="Resource" path="res://data/characters/hunter.tres" id="2_hunter"]
+[ext_resource type="PackedScene" path="res://player/player.tscn" id="3_player"]
+[ext_resource type="Script" path="res://core/camera_rig.gd" id="4_camera"]
+[ext_resource type="Script" path="res://enemies/enemy_swarm.gd" id="5_swarm"]
+[ext_resource type="Texture2D" path="res://art/sprites/enemies.png" id="6_enemy_sheet"]
+[ext_resource type="Script" path="res://enemies/spawn_director.gd" id="7_director"]
+[ext_resource type="Resource" path="res://data/waves/night.tres" id="8_waves"]
+[ext_resource type="Texture2D" path="res://art/sprites/enemies_large.png" id="9_enemy_large_sheet"]
+[ext_resource type="Script" path="res://enemies/enemy_shot_field.gd" id="10_enemy_shots"]
+[ext_resource type="Texture2D" path="res://art/sprites/enemy_shots.png" id="24_enemy_shot_sheet"]
+[ext_resource type="Texture2D" path="res://art/tiles/grass.png" id="11_grass"]
+[ext_resource type="Script" path="res://world/decor_field.gd" id="12_decor"]
+[ext_resource type="Texture2D" path="res://art/sprites/decor.png" id="13_decor_sheet"]
+[ext_resource type="PackedScene" path="res://ui/hud.tscn" id="14_hud"]
+[ext_resource type="Resource" path="res://data/upgrade_pool.tres" id="15_pool"]
+[ext_resource type="Script" path="res://pickups/gem_field.gd" id="16_gems"]
+[ext_resource type="Texture2D" path="res://art/sprites/gems.png" id="17_gem_sheet"]
+[ext_resource type="PackedScene" path="res://ui/level_up_screen.tscn" id="18_level_up"]
+[ext_resource type="Script" path="res://weapons/projectile_field.gd" id="19_projectiles"]
+[ext_resource type="Texture2D" path="res://art/sprites/projectiles.png" id="20_projectile_sheet"]
+[ext_resource type="Script" path="res://pickups/pickup_field.gd" id="21_pickups"]
+[ext_resource type="Texture2D" path="res://art/sprites/pickups.png" id="22_pickup_sheet"]
+[ext_resource type="PackedScene" path="res://ui/chest_screen.tscn" id="23_chest_screen"]
+[ext_resource type="PackedScene" path="res://ui/pause_menu.tscn" id="38_pause_menu"]
+[ext_resource type="PackedScene" path="res://ui/game_over_screen.tscn" id="39_game_over"]
+[ext_resource type="Script" path="res://pickups/pickup_data.gd" id="30_pickup_data"]
+[ext_resource type="Script" path="res://world/breakable_data.gd" id="31_breakable_data"]
+[ext_resource type="Script" path="res://world/breakable_spawner.gd" id="32_breakable_spawner"]
+[ext_resource type="Script" path="res://fx/damage_number_field.gd" id="33_numbers"]
+[ext_resource type="Script" path="res://fx/effect_field.gd" id="34_effects"]
+[ext_resource type="Texture2D" path="res://art/sprites/damage_digits.png" id="35_digits"]
+[ext_resource type="Texture2D" path="res://art/sprites/effects.png" id="36_effect_sheet"]
+[ext_resource type="Resource" path="res://data/drops/enemy_drops.tres" id="37_enemy_drops"]
+[ext_resource type="Resource" path="res://data/pickups/chest.tres" id="p_chest"]
+[ext_resource type="Resource" path="res://data/pickups/communion_bread.tres" id="p_communion_bread"]
+[ext_resource type="Resource" path="res://data/pickups/roast_fowl.tres" id="p_roast_fowl"]
+[ext_resource type="Resource" path="res://data/pickups/lodestone_magnet.tres" id="p_lodestone_magnet"]
+[ext_resource type="Resource" path="res://data/pickups/blessed_bomb.tres" id="p_blessed_bomb"]
+[ext_resource type="Resource" path="res://data/pickups/gold_coin.tres" id="p_gold_coin"]
+[ext_resource type="Resource" path="res://data/pickups/coin_pouch.tres" id="p_coin_pouch"]
+[ext_resource type="Resource" path="res://data/breakables/iron_lantern.tres" id="b_iron_lantern"]
+[ext_resource type="Resource" path="res://data/breakables/brazier.tres" id="b_brazier"]
+[ext_resource type="Resource" path="res://data/breakables/supply_crate.tres" id="b_supply_crate"]
+[ext_resource type="Resource" path="res://data/breakables/grave_cross.tres" id="b_grave_cross"]
+
+[sub_resource type="Environment" id="Environment_world"]
+background_mode = 1
+background_color = Color(0.05, 0.06, 0.09, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.55, 0.6, 0.78, 1)
+ambient_light_energy = 0.55
+tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 0.7
+glow_bloom = 0.05
+glow_hdr_threshold = 0.9
+adjustment_enabled = true
+adjustment_saturation = 1.1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+albedo_texture = ExtResource("11_grass")
+roughness = 1.0
+uv1_scale = Vector3(0.125, 0.125, 0.125)
+uv1_triplanar = true
+uv1_world_triplanar = true
+texture_filter = 0
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+material = SubResource("StandardMaterial3D_ground")
+size = Vector2(160, 160)
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_game")
+character = ExtResource("2_hunter")
+upgrade_pool = ExtResource("15_pool")
+chest_pickup = ExtResource("p_chest")
+enemy_drops = ExtResource("37_enemy_drops")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_world")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.819152, 0.32899, -0.469846, 0, 0.819152, 0.573576, 0.573576, -0.469846, 0.67101, 0, 10, 0)
+light_color = Color(1, 0.93, 0.82, 1)
+light_energy = 1.1
+
+[node name="Ground" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_ground")
+
+[node name="Decor" type="Node3D" parent="."]
+script = ExtResource("12_decor")
+sheet = ExtResource("13_decor_sheet")
+
+[node name="Player" parent="." instance=ExtResource("3_player")]
+
+[node name="EnemySwarm" type="Node3D" parent="."]
+script = ExtResource("5_swarm")
+sheet = ExtResource("6_enemy_sheet")
+vframes = 11
+large_sheet = ExtResource("9_enemy_large_sheet")
+
+[node name="GemField" type="Node3D" parent="."]
+script = ExtResource("16_gems")
+sheet = ExtResource("17_gem_sheet")
+
+[node name="ProjectileField" type="Node3D" parent="."]
+script = ExtResource("19_projectiles")
+sheet = ExtResource("20_projectile_sheet")
+vframes = 8
+
+[node name="EnemyShotField" type="Node3D" parent="."]
+script = ExtResource("10_enemy_shots")
+sheet = ExtResource("24_enemy_shot_sheet")
+
+[node name="PickupField" type="Node3D" parent="."]
+script = ExtResource("21_pickups")
+types = Array[ExtResource("30_pickup_data")]([ExtResource("p_chest"), ExtResource("p_communion_bread"), ExtResource("p_roast_fowl"), ExtResource("p_lodestone_magnet"), ExtResource("p_blessed_bomb"), ExtResource("p_gold_coin"), ExtResource("p_coin_pouch")])
+sheet = ExtResource("22_pickup_sheet")
+
+[node name="EffectField" type="Node3D" parent="."]
+script = ExtResource("34_effects")
+sheet = ExtResource("36_effect_sheet")
+
+[node name="DamageNumberField" type="Node3D" parent="."]
+script = ExtResource("33_numbers")
+digits = ExtResource("35_digits")
+
+[node name="SpawnDirector" type="Node" parent="."]
+script = ExtResource("7_director")
+table = ExtResource("8_waves")
+
+[node name="BreakableSpawner" type="Node" parent="."]
+script = ExtResource("32_breakable_spawner")
+types = Array[ExtResource("31_breakable_data")]([ExtResource("b_iron_lantern"), ExtResource("b_brazier"), ExtResource("b_supply_crate"), ExtResource("b_grave_cross")])
+
+[node name="CameraRig" type="Node3D" parent="."]
+script = ExtResource("4_camera")
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+current = true
+
+[node name="HUD" parent="." instance=ExtResource("14_hud")]
+
+[node name="LevelUpScreen" parent="." instance=ExtResource("18_level_up")]
+
+[node name="ChestScreen" parent="." instance=ExtResource("23_chest_screen")]
+
+[node name="PauseMenu" parent="." instance=ExtResource("38_pause_menu")]
+
+[node name="GameOverScreen" parent="." instance=ExtResource("39_game_over")]

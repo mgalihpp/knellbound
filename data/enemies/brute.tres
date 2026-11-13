@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://enemies/enemy_data.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"brute"
+display_name = "Gravebound Brute"
+behavior = 0
+sprite_row = 0
+large_sprite = true
+max_hp = 220.0
+move_speed = 1.35
+contact_damage = 20.0
+radius = 0.75
+scale = 1.0
+knockback_resist = 0.9
+xp_value = 8.0

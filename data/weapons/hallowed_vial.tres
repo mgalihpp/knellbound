@@ -1,0 +1,62 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_data.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://art/icons/hallowed_vial.png" id="2_icon"]
+[ext_resource type="PackedScene" path="res://weapons/vial/vial_weapon.tscn" id="3_scene"]
+[ext_resource type="Script" path="res://weapons/weapon_level.gd" id="4_level"]
+
+[sub_resource type="Resource" id="Resource_lv2"]
+script = ExtResource("4_level")
+description = "Throws 1 more vial."
+amount = 1
+
+[sub_resource type="Resource" id="Resource_lv3"]
+script = ExtResource("4_level")
+description = "Pools 20% wider, +1 damage."
+area = 0.2
+damage = 1.0
+
+[sub_resource type="Resource" id="Resource_lv4"]
+script = ExtResource("4_level")
+description = "Pools last 30% longer."
+duration = 0.3
+
+[sub_resource type="Resource" id="Resource_lv5"]
+script = ExtResource("4_level")
+description = "+1 vial, +2 damage."
+amount = 1
+damage = 2.0
+
+[sub_resource type="Resource" id="Resource_lv6"]
+script = ExtResource("4_level")
+description = "Throws 15% faster."
+cooldown = -0.15
+
+[sub_resource type="Resource" id="Resource_lv7"]
+script = ExtResource("4_level")
+description = "Pools 20% wider."
+area = 0.2
+
+[sub_resource type="Resource" id="Resource_lv8"]
+script = ExtResource("4_level")
+description = "+1 vial, pools last 30% longer, +2 damage."
+amount = 1
+duration = 0.3
+damage = 2.0
+
+[resource]
+script = ExtResource("1_script")
+id = &"hallowed_vial"
+display_name = "Hallowed Vial"
+description = "Lobs holy water that leaves a burning pool on the ground."
+icon = ExtResource("2_icon")
+scene = ExtResource("3_scene")
+damage = 6.0
+cooldown = 3.2
+area = 1.5
+knockback = 0.0
+amount = 1
+projectile_speed = 0.0
+duration = 2.6
+hit_interval = 0.35
+levels = Array[ExtResource("4_level")]([SubResource("Resource_lv2"), SubResource("Resource_lv3"), SubResource("Resource_lv4"), SubResource("Resource_lv5"), SubResource("Resource_lv6"), SubResource("Resource_lv7"), SubResource("Resource_lv8")])
