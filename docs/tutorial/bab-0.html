@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Pixelify+Sans:wght@500;600&display=swap">
-<link rel="stylesheet" href="assets/style.css?v=5213953b">
+<link rel="stylesheet" href="assets/style.css?v=19e99500">
 <script>try{var t=JSON.parse(localStorage.getItem("kb-theme"));if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 </head>
 <body data-page="bab-0">
@@ -76,16 +76,16 @@
 <p><code>canvas_items</code> berarti UI dirancang di 1280×720 lalu diskalakan ke ukuran jendela sebenarnya; <code>expand</code> berarti layar yang lebih lebar menampilkan area lebih banyak, bukan bilah hitam. Dunia 3D tidak terpengaruh stretch karena ukurannya diatur oleh kamera orthographic (Bab 1).</p>
 <h3 id="filter">Filter tekstur nearest</h3>
 <p><span class="menu-path">Rendering → Textures → Canvas Textures → Default Texture Filter</span> = <code>Nearest</code>. Tanpa ini, ikon UI pixel art jadi buram karena diinterpolasi linear. Pengaturan ini hanya berlaku untuk node 2D/UI. Di 3D, filter diatur per material: <code>Sprite3D.texture_filter = Nearest</code> dan di shader <code>uniform sampler2D sheet : filter_nearest</code>. Kamu akan melihat keduanya di Bab 1.</p>
-<div class="code" data-src="project.godot" data-from="^\[display\]" data-to="^\[editor_plugins\]|^\[gui\]"><div class="file"><span><b>project.godot</b> · baris 26–31</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">26</span>[display]
-<span class="ln">27</span>
-<span class="ln">28</span>window/size/viewport_width=<span class="tk-num">1280</span>
-<span class="ln">29</span>window/size/viewport_height=<span class="tk-num">720</span>
-<span class="ln">30</span>window/stretch/mode=<span class="tk-str">&quot;canvas_items&quot;</span>
-<span class="ln">31</span>window/stretch/aspect=<span class="tk-str">&quot;expand&quot;</span></code></pre></div><!--/code-->
-<div class="code" data-src="project.godot" data-from="^\[rendering\]"><div class="file"><span><b>project.godot</b> · baris 107–110</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">107</span>[rendering]
-<span class="ln">108</span>
-<span class="ln">109</span>textures/canvas_textures/default_texture_filter=<span class="tk-num">0</span>
-<span class="ln">110</span>rendering_device/driver.windows=<span class="tk-str">&quot;d3d12&quot;</span></code></pre></div><!--/code-->
+<div class="code" data-src="project.godot" data-from="^\[display\]" data-to="^\[editor_plugins\]|^\[gui\]"><div class="file"><span><b>project.godot</b> · baris 25–30</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">25</span>[display]
+<span class="ln">26</span>
+<span class="ln">27</span>window/size/viewport_width=<span class="tk-num">1280</span>
+<span class="ln">28</span>window/size/viewport_height=<span class="tk-num">720</span>
+<span class="ln">29</span>window/stretch/mode=<span class="tk-str">&quot;canvas_items&quot;</span>
+<span class="ln">30</span>window/stretch/aspect=<span class="tk-str">&quot;expand&quot;</span></code></pre></div><!--/code-->
+<div class="code" data-src="project.godot" data-from="^\[rendering\]"><div class="file"><span><b>project.godot</b> · baris 102–105</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">102</span>[rendering]
+<span class="ln">103</span>
+<span class="ln">104</span>textures/canvas_textures/default_texture_filter=<span class="tk-num">0</span>
+<span class="ln">105</span>rendering_device/driver.windows=<span class="tk-str">&quot;d3d12&quot;</span></code></pre></div><!--/code-->
 
 <h3 id="input-map">Input Map</h3>
 <p>Game tidak pernah membaca tombol keyboard secara langsung. Ia membaca <b>aksi</b> bernama, dan Input Map memetakan tombol, stik, dan d-pad ke aksi itu. Pemain dengan gamepad dan keyboard jalan dengan kode yang sama.</p>
@@ -217,7 +217,7 @@
 </article>
 </main>
 </div>
-<script src="assets/search-index.js?v=f641e385"></script>
+<script src="assets/search-index.js?v=3fb33183"></script>
 <script src="assets/site.js?v=3fa56380"></script>
 <script src="assets/demos.js?v=4520dcc1"></script>
 <script src="assets/demos-swarm.js?v=36474919"></script>
