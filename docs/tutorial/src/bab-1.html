@@ -1,0 +1,207 @@
+<!-- title: Bab 1 · Dunia 2.5D dan EnemySwarm | desc: Fase 1 Knellbound: kamera orthographic miring, sprite billboard sumbu Y, ribuan musuh di packed array + MultiMesh, spatial hash, Holy Aura. -->
+<span class="eyebrow">Bab 1 · Fase 1 · commit 3f048ff</span>
+<h1>Dunia 2.5D dan EnemySwarm</h1>
+<p class="lede">Bab paling penting. Di sini fondasi seluruh game dipasang: dunia 3D yang dilihat dari kamera miring, sprite pixel yang berdiri menghadap kamera, dan cara menggerakkan serta menggambar ribuan musuh tanpa membuat ribuan node.</p>
+
+<div class="goal"><span class="tag">Tujuan</span>Pemain berjalan di padang rumput tak berujung. Musuh muncul makin banyak dari luar layar, mengejar, saling menjauh supaya tidak bertumpuk, dan didorong oleh Holy Aura yang memberi damage tiap 0,6 detik. Tekan <kbd>F1</kbd>: 500 musuh tambahan, game tetap mulus.</div>
+<div class="shots">
+  <figure><img src="assets/img/p1_start.webp" alt="Fase 1 detik pertama: pemain dengan aura biru di padang rumput, beberapa kelelawar di kejauhan" width="1280" height="720" loading="lazy"><figcaption>Fase 1, detik ke-2.</figcaption></figure>
+  <figure><img src="assets/img/p1_swarm.webp" alt="Fase 1 setelah 250 musuh tambahan: gerombolan ghoul dan kelelawar mengelilingi pemain" width="1280" height="720" loading="lazy"><figcaption>Detik ke-9 setelah <code>spawn_ring(250)</code>.</figcaption></figure>
+</div>
+
+<h2 id="node-scene">Konsep: Node, Scene, dan Resource</h2>
+<div class="callout"><span class="tag">Konsep · Godot</span>
+  <p><b>Node</b> adalah satuan terkecil di Godot: sesuatu yang punya nama, posisi di pohon, dan (opsional) skrip. <b>Scene</b> adalah pohon node yang disimpan ke file <code>.tscn</code> dan bisa dipakai berulang (di-<i>instance</i>), seperti <code>player.tscn</code> yang dimasukkan ke <code>main.tscn</code>. <b>Resource</b> adalah data tanpa posisi di pohon: tekstur, mesh, material, atau kelas data milikmu sendiri seperti <code>EnemyData</code>. Resource disimpan sebagai <code>.tres</code> dan dibagi oleh siapa pun yang memuatnya.</p>
+  <p>Aturan praktis di proyek ini: <b>sesuatu yang perlu ada di dunia dan jumlahnya sedikit</b> (pemain, kamera, HUD) = node. <b>Sesuatu yang jumlahnya ribuan</b> (musuh, proyektil, gem) = baris data di array, digambar oleh satu node. <b>Sesuatu yang mendeskripsikan</b> (statistik ghoul, statistik senjata) = Resource.</p>
+</div>
+
+<h2 id="gameplay-2d">Gameplay di 2D, tampilan di 3D</h2>
+<p>Knellbound terlihat 3D, tapi semua logika berjalan di bidang datar. Posisi pemain adalah <code>pos2: Vector2</code>; komponen <code>x</code> = sumbu X dunia, komponen <code>y</code> = sumbu Z dunia. Node 3D hanya menyalin nilai itu untuk digambar:</p>
+<div class="code" data-src="player/player.gd" data-from="func tick\(dt: float\)" data-to="var regen"></div><!--/code-->
+<p>Keuntungannya besar: jarak, tabrakan, dan arah semua memakai <code>Vector2</code> (dua angka, bukan tiga), tidak perlu fisika 3D, dan tidak pernah ada musuh yang "jatuh" atau tersangkut di lantai. Ketinggian (proyektil melayang, vial yang dilempar melengkung) hanya ditambahkan saat menulis buffer gambar.</p>
+
+<h2 id="main-scene">Langkah 1: scene <code>main.tscn</code></h2>
+<ol class="steps">
+  <li><span class="menu-path">Scene → New Scene</span>, pilih <b>3D Scene</b>. Rename root jadi <code>Main</code>. Simpan sebagai <code>scenes/main.tscn</code>. Di <span class="menu-path">Project Settings → Application → Run → Main Scene</span> pilih file ini (Fase 7 menggantinya dengan title).</li>
+  <li>Tambah child <b>WorldEnvironment</b>. Di Inspector buat <i>New Environment</i>: Background Mode <code>Custom Color</code> gelap, Ambient Light dari warna, Tonemap <code>Filmic</code>, aktifkan <b>Glow</b>. Glow penting nanti: warna di atas 1,0 (aura, proyektil, outline elite) akan berpendar.</li>
+  <li>Tambah <b>DirectionalLight3D</b> bernama <code>Sun</code>. Sprite memakai shader <code>unshaded</code>, jadi lampu hanya memengaruhi tanah.</li>
+  <li>Tambah <b>MeshInstance3D</b> bernama <code>Ground</code>, Mesh = <i>PlaneMesh</i> 160×160. Material: <i>StandardMaterial3D</i>, Albedo Texture = <code>art/tiles/grass.png</code>, UV1 Triplanar + World Triplanar aktif, UV1 scale 0,125, Texture Filter <code>Nearest</code>.</li>
+</ol>
+<div class="code" data-src="scenes/main.tscn" data-from="StandardMaterial3D_ground.\]" data-to="^\[node name=.Main."></div><!--/code-->
+<p>Trik tanah tak berujung: plane 160×160 digeser mengikuti pemain tiap frame (<code>ground.position = Vector3(player.pos2.x, 0, player.pos2.y)</code> di <code>Game._process</code>). Karena UV-nya <b>world triplanar</b>, tekstur dihitung dari posisi dunia, bukan dari posisi mesh. Mesh bergerak, rumputnya diam. Pemain tidak pernah melihat tepi.</p>
+
+<h2 id="kamera">Langkah 2: kamera orthographic miring</h2>
+<div class="callout"><span class="tag">Konsep · Camera3D</span><b>Perspective</b> membuat benda jauh tampak kecil. <b>Orthographic</b> tidak: semua benda tampak sebesar ukuran aslinya, berapa pun jaraknya, seperti gambar teknik. Untuk pixel art, ortho berarti satu piksel sprite selalu menjadi jumlah piksel layar yang sama di seluruh layar. Properti <code>size</code> pada kamera ortho = tinggi area yang terlihat, dalam unit dunia.</div>
+<p>Buat node <b>Node3D</b> bernama <code>CameraRig</code>, beri child <b>Camera3D</b>, lalu tempel skrip <code>core/camera_rig.gd</code>. Rig berada di tanah mengikuti pemain; kameranya duduk di ujung "lengan" yang miring.</p>
+<div class="code" data-src="core/camera_rig.gd" data-from="^@export_range\(20.0, 80.0\)" data-to="^func snap_to"></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">28</b>Dengan pitch <code>p</code> dan jarak 30, kamera berada <code>sin(p)·30</code> di atas dan <code>cos(p)·30</code> di belakang rig. Itu trigonometri biasa: sisi segitiga siku-siku dengan sudut <code>p</code>.</li>
+  <li><b class="ln">29</b>Lalu kamera diputar menunduk sebesar <code>-p</code> di sumbu X, sehingga ia menatap tepat ke rig.</li>
+  <li><b class="ln">33</b><code>ortho_size = 13</code>: layar memperlihatkan 13 unit dunia secara vertikal. Karena 16 piksel = 1 unit dan layar 720 piksel, satu piksel art jadi kira-kira 3 piksel layar.</li>
+</ul>
+<div class="code" data-src="core/camera_rig.gd" data-from="^func tick" data-to="^## Ground rect"></div><!--/code-->
+<p>Baris 44 adalah pola yang akan sering kamu lihat: <b>lerp dengan faktor <code>1 - exp(-k·dt)</code></b>. Kalau kamu menulis <code>lerp(target, 0.2)</code> tiap frame, kamera mengikuti lebih cepat di 144 FPS daripada di 60 FPS. Dengan eksponen, hasilnya sama berapa pun FPS-nya: setelah 1 detik selalu tersisa <code>exp(-12)</code> dari jarak awal. Knockback musuh (Fase 1) dan peluruhan shake (Fase 6) memakai ide yang sama.</p>
+
+<h2 id="sprite-player">Langkah 3: pemain sebagai Sprite3D billboard</h2>
+<ol class="steps">
+  <li>Scene baru, root <b>Node3D</b> bernama <code>Player</code>, simpan <code>player/player.tscn</code>, tempel <code>player/player.gd</code>.</li>
+  <li>Child <b>Sprite3D</b> bernama <code>Sprite</code>: Texture <code>art/sprites/player_hunter.png</code>, Animation → Hframes <code>4</code>, Pixel Size <code>0.0625</code> (= 1/16, jadi 16 px = 1 unit), Offset Y <code>9</code> (setengah sel 18 px, supaya kaki berdiri di titik origin), Flags → Billboard <code>Y-Billboard</code>, Shaded off, Alpha Cut <code>Discard</code>, Texture Filter <code>Nearest</code>.</li>
+  <li>Di Transform, Scale Y = <code>1.55</code>. Kenapa? Lihat demo di bawah.</li>
+  <li>Child <b>MeshInstance3D</b> <code>Shadow</code>: PlaneMesh 1×0,55 dengan shader <code>shaders/blob_shadow.gdshader</code>, posisi Y 0,02 (sedikit di atas tanah supaya tidak z-fighting).</li>
+  <li>Child <b>Node3D</b> <code>Weapons</code>: senjata akan ditambahkan sebagai anak node ini saat run.</li>
+  <li>Instance <code>player.tscn</code> ke <code>main.tscn</code> (<span class="menu-path">klik kanan Main → Instantiate Child Scene</span>).</li>
+</ol>
+<div class="code" data-src="player/player.tscn" data-from="^\[node name=.Sprite." data-to="^\[node name=.Weapons."></div><!--/code-->
+<p><code>billboard = 2</code> adalah <code>BILLBOARD_FIXED_Y</code>: sprite hanya berputar di sumbu Y menghadap kamera, tetap tegak lurus tanah. Billboard penuh (<code>1</code>) akan ikut menunduk 50° dan terlihat rebah.</p>
+<div class="demo" data-demo="billboard"></div>
+<p>Inilah alasan angka <code>1.55</code> muncul di mana-mana (<code>y_stretch</code> di setiap Field, scale Y Sprite3D pemain). Sprite berdiri tegak, kamera menunduk 50°, jadi tinggi sprite di layar menyusut menjadi <code>cos 50° ≈ 0,643</code>. Dikali 1,55 hasilnya ≈ 1,0: piksel art tetap persegi. Tanah sendiri menyusut <code>sin 50° ≈ 0,766</code>, yang memberi kesan perspektif miring. Itulah "2.5D".</p>
+
+<h2 id="kenapa-bukan-node">Konsep: kenapa musuh bukan node</h2>
+<div class="callout"><span class="tag">Konsep · data-oriented design</span>
+  <p>Cara paling mudah membuat musuh adalah scene <code>enemy.tscn</code> dengan skrip yang punya <code>_process</code> sendiri, lalu di-instance 1000 kali. Untuk 50 musuh itu baik-baik saja. Untuk 1000+ ada tiga biaya yang menumpuk:</p>
+  <ul>
+    <li><b>Panggilan per node.</b> Tiap frame Godot memanggil 1000 <code>_process</code>, masing-masing lewat mesin skrip. Biaya panggilan itu sendiri sudah signifikan di GDScript.</li>
+    <li><b>Transform per node.</b> Mengubah <code>position</code> node memicu notifikasi transform, update ke RenderingServer, dan pengecekan AABB, satu per musuh.</li>
+    <li><b>Memori tersebar.</b> Data tiap musuh ada di objek berbeda di memori. CPU paling cepat membaca data yang berurutan.</li>
+  </ul>
+  <p>Solusinya: simpan semua musuh sebagai <b>baris</b> di beberapa array yang <b>paralel</b>: <code>pos[i]</code>, <code>hp[i]</code>, <code>speed[i]</code>, … semuanya milik musuh ke-<code>i</code>. Satu loop memproses semuanya. Untuk menggambar, satu <b>MultiMesh</b> menerima satu buffer berisi transform semua musuh sekaligus.</p>
+</div>
+<p>Packed array (<code>PackedVector2Array</code>, <code>PackedFloat32Array</code>, <code>PackedInt32Array</code>) menyimpan angka berjejer rapat tanpa pembungkus Variant, jauh lebih hemat dan cepat dibanding <code>Array</code> biasa.</p>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^var types: Array\[EnemyData\]" data-to="^var _t_weave_amt"></div><!--/code-->
+<div class="callout"><span class="tag">Konsep · copy-on-write</span>
+  <p>Packed array di GDScript adalah <b>nilai</b> dengan copy-on-write: <code>var b := pos</code> tidak menyalin datanya, tapi begitu kamu <b>menulis</b> ke <code>b</code>, Godot menyalin seluruh array agar <code>pos</code> tidak ikut berubah. Dua akibat yang terlihat di kode:</p>
+  <ul>
+    <li>Di <code>_ready</code>, tiap array di-<code>resize</code> langsung lewat namanya (bukan lewat loop atas daftar array), karena alias lokal akan meresize salinan.</li>
+    <li>Di <code>upload()</code>, penulisan ke <code>_buf</code> dan <code>_large_buf</code> sengaja ditulis dua kali dalam dua cabang alih-alih <code>var b := _large_buf if … else _buf</code>, karena alias itu akan menyalin buffer tiap frame.</li>
+  </ul>
+  <p>Membaca lewat alias aman dan murah. Itu sebabnya <code>_separate()</code> boleh menulis <code>var starts := _grid.cell_start</code>: hanya dibaca.</p>
+</div>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^func _ready" data-to="var blob := PlaneMesh" data-hl="116"></div><!--/code-->
+
+<h2 id="enemy-data">Langkah 4: EnemyData sebagai Resource</h2>
+<p>Statistik musuh tidak ditulis di kode. Buat kelas Resource:</p>
+<div class="code" data-src="enemies/enemy_data.gd" data-ref="3f048ff" data-lines="1-18"></div><!--/code-->
+<ol class="steps">
+  <li>Simpan skrip di <code>enemies/enemy_data.gd</code>. Karena ada <code>class_name EnemyData</code>, kelas ini terdaftar global.</li>
+  <li>Di FileSystem klik kanan <code>data/enemies/</code> → <span class="menu-path">Create New → Resource…</span>, cari <b>EnemyData</b>, simpan sebagai <code>ghoul.tres</code>.</li>
+  <li>Klik file itu: semua <code>@export</code> muncul di Inspector. Isi Max HP 12, Move Speed 2,2, Contact Damage 8.</li>
+  <li>Ulangi untuk <code>bat.tres</code> (lebih cepat, HP kecil, Sprite Row 1).</li>
+</ol>
+<div class="code" data-src="data/enemies/ghoul.tres"></div><!--/code-->
+<p>File <code>.tres</code> adalah teks. Kamu bisa membacanya, men-diff-nya, dan menyeimbangkan game tanpa membuka kode. Di Fase 5 EnemyData berkembang (perilaku, tembakan), tapi prinsipnya sama: nilai disalin ke array swarm saat spawn, sehingga loop panas tidak pernah membaca Resource.</p>
+
+<h2 id="spawn">Langkah 5: EnemySwarm.spawn dan hapus swap-with-last</h2>
+<p>Buat <b>Node3D</b> <code>EnemySwarm</code> di <code>main.tscn</code>, tempel <code>enemies/enemy_swarm.gd</code>, isi <code>sheet</code> dengan <code>art/sprites/enemies.png</code>. Slot <code>0..count-1</code> hidup. Spawn = tulis ke slot <code>count</code>, lalu <code>count += 1</code>.</p>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-ref="3f048ff" data-from="^func spawn" data-to="^func tick"></div><!--/code-->
+<p>Menghapus musuh di tengah array dengan <code>remove_at</code> akan menggeser semua elemen di belakangnya: O(n), dan dikali ratusan kematian per detik. Karena urutan musuh tidak berarti apa-apa, cukup <b>salin elemen terakhir ke lubang</b>:</p>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^func flush_dead" data-to="^## Removes slot i at the next"></div><!--/code-->
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^func _remove_at" data-to="^## Write instance data"></div><!--/code-->
+<div class="demo" data-demo="swap"></div>
+<p>Dua hal halus di <code>flush_dead</code>: kematian dikumpulkan dulu di <code>_dead</code> dan diproses setelah semua senjata selesai (supaya indeks tidak berubah di tengah loop senjata), lalu <code>_dead</code> <b>diurutkan dan diproses dari belakang</b>. Kalau slot 3 dan 9 mati dan 9 adalah slot terakhir, menghapus 3 dulu akan memindahkan isi slot 9 ke 3, lalu "hapus 9" menghapus musuh yang salah.</p>
+
+<h2 id="multimesh">Langkah 6: menggambar dengan MultiMesh</h2>
+<div class="callout"><span class="tag">Konsep · MultiMesh dan RenderingServer</span><p><b>MultiMesh</b> menggambar satu mesh sebanyak <i>N</i> kali dalam satu draw call, masing-masing dengan transform dan data warnanya sendiri. <b>RenderingServer</b> adalah API tingkat rendah tempat node visual Godot sebenarnya berbicara. Dengan <code>RenderingServer.multimesh_set_buffer(rid, buffer)</code> kita mengirim semua data instance dalam <b>satu panggilan</b>, bukan <i>N</i> panggilan <code>set_instance_transform</code>.</p></div>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^func _make_multimesh" data-to="^func _type_index"></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">169</b><code>TRANSFORM_3D</code> + <code>use_custom_data</code>: tiap instance = 12 float transform + 4 float custom = 16 float (<code>STRIDE</code>).</li>
+  <li><b class="ln">172</b><code>instance_count</code> diset sekali ke kapasitas penuh. Yang berubah tiap frame hanya <code>visible_instance_count</code>; mengubah <code>instance_count</code> akan mengalokasikan ulang buffer GPU.</li>
+  <li><b class="ln">175</b><code>custom_aabb</code> raksasa: Godot tidak perlu menghitung ulang kotak pembatas dari ribuan instance, dan MultiMesh tidak pernah ter-<i>cull</i> karena AABB lama.</li>
+</ul>
+<p>Setiap musuh menulis 16 float. Dari 12 float transform, hanya 5 yang berubah: skala di diagonal (indeks 0, 5, 10) dan posisi x, z (indeks 3, 11). Sisanya tetap 0, jadi tidak perlu ditulis ulang. Empat float terakhir menjadi <code>INSTANCE_CUSTOM</code> di shader.</p>
+<div class="demo" data-demo="buffer"></div>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-ref="3f048ff" data-from="^func upload" data-hl="330-331"></div><!--/code-->
+<p>Bayangan memakai buffer yang <b>sama</b> (<code>_shadow_mm</code> diberi <code>_buf</code> juga): transformnya identik, dan shader bayangan mengabaikan data custom. Dua MultiMesh, dua panggilan, nol kerja tambahan di CPU.</p>
+
+<h3 id="shader-billboard">Shader sprite billboard</h3>
+<p>MultiMesh tidak punya opsi billboard seperti Sprite3D, jadi shader <code>sprite_billboard.gdshader</code> melakukannya sendiri, sekaligus memilih frame animasi, membalik sprite, dan memberi hit flash dari <code>INSTANCE_CUSTOM</code>.</p>
+<div class="code" data-src="shaders/sprite_billboard.gdshader" data-ref="3f048ff"></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">vertex</b><code>frame = floor(mod(TIME * fps + INSTANCE_CUSTOM.x, hframes))</code>: animasi berjalan di GPU. CPU tidak perlu mengirim frame tiap saat; <code>phase</code> acak per musuh membuat gerombolan tidak bergerak serempak.</li>
+  <li><b class="ln">uv</b>Kalau <code>INSTANCE_CUSTOM.y &lt; 0</code>, <code>uv.x = 1 - uv.x</code>: sprite dicerminkan, menghadap kiri.</li>
+  <li><b class="ln">VERTEX.y</b>Dikali <code>y_stretch</code> sebelum rotasi.</li>
+  <li><b class="ln">MODELVIEW</b>Matriks dibangun ulang: sumbu X = arah kanan kamera diproyeksikan ke horizontal, sumbu Y = tegak dunia, sumbu Z = cross keduanya, posisi = posisi instance. Lalu dikali skala instance (panjang kolom <code>MODEL_MATRIX</code>). Hasilnya: billboard sumbu Y untuk setiap instance.</li>
+  <li><b class="ln">fragment</b><code>ALPHA_SCISSOR_THRESHOLD = 0.5</code>: piksel transparan dibuang, sisanya opak. Sprite bisa ditulis ke depth buffer sehingga urutan depan-belakang benar tanpa sorting.</li>
+</ul>
+
+<h2 id="tick">Langkah 7: gerak musuh</h2>
+<p>Satu loop untuk semua musuh. Versi Fase 1 hanya punya satu perilaku: kejar pemain.</p>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-ref="3f048ff" data-from="^func tick" data-to="^func _separate"></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">seek</b><code>v = d * (speed / |d|)</code>: vektor ke pemain dinormalisasi lalu dikali kecepatan. Satu akar kuadrat per musuh. Ini perilaku <b>seek</b> paling dasar.</li>
+  <li><b class="ln">relokasi</b>Musuh yang tertinggal lebih dari 34 unit dipindah ke cincin 20 unit di sisi seberang, yaitu ke arah pemain sedang berjalan. Pemain yang lari terus tidak meninggalkan ribuan musuh tak berguna di belakang.</li>
+  <li><b class="ln">knock</b>Knockback disimpan terpisah dari kecepatan kejar, ditambahkan ke gerak, lalu meluruh <code>knock *= exp(-knock_decay·dt)</code>.</li>
+  <li><b class="ln">grid</b>Setelah semua bergerak, grid dibangun ulang dan separasi dijalankan.</li>
+</ul>
+<div class="demo" data-demo="chase"></div>
+
+<h2 id="spatial-hash">Langkah 8: SpatialHash</h2>
+<p>Separasi, damage aura, proyektil, dan tabrakan dengan pemain semuanya bertanya hal yang sama: <i>musuh mana yang dekat titik ini?</i> Mengecek semua musuh berarti O(n) per pertanyaan; separasi (setiap musuh bertanya) menjadi O(n²): 1000 musuh = sejuta cek per frame.</p>
+<div class="callout"><span class="tag">Konsep · uniform grid + hash</span><p>Bagi dunia menjadi sel persegi (1,2 unit). Musuh hanya perlu dicek terhadap musuh di sel yang sama dan sel tetangga. Karena dunia tidak terbatas, koordinat sel <code>(cx, cy)</code> di-<b>hash</b> ke tabel berukuran tetap 4096 bucket: <code>((cx · 73856093) ^ (cy · 19349663)) &amp; 4095</code>. Dua sel jauh bisa jatuh ke bucket yang sama (tabrakan hash), jadi pemanggil tetap harus mengecek jarak sebenarnya.</p></div>
+<div class="code" data-src="core/spatial_hash.gd"></div><!--/code-->
+<p>Grid dibangun ulang <b>dari nol setiap frame</b> karena semua musuh bergerak. Supaya murah, <code>build()</code> memakai <b>counting sort</b>: tidak ada Array per sel, tidak ada alokasi, hanya tiga loop di atas packed array yang dipakai ulang.</p>
+<div class="demo" data-demo="countsort"></div>
+<p>Query lingkaran mengunjungi semua sel yang disentuh kotak pembatas lingkaran (diperbesar dengan radius musuh terbesar), lalu mengecek jarak. Satu musuh bisa ditemukan dua kali kalau dua sel berbagi bucket; <code>_stamp</code> mencegah itu tanpa perlu membersihkan apa pun: setiap query punya nomor baru, dan musuh yang sudah dicap nomor itu dilewati.</p>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^## Alive enemies whose collision" data-to="^## Closest alive enemy"></div><!--/code-->
+<div class="demo" data-demo="hash"></div>
+
+<h3 id="separasi">Separasi yang murah</h3>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-ref="3f048ff" data-from="^func _separate" data-to="^## Alive enemies"></div><!--/code-->
+<p>Tiga trik membuat separasi muat dalam anggaran frame:</p>
+<ol>
+  <li><b>Hanya blok 2×2 sel terdekat.</b> Karena sel (1,2) ≥ 2× radius musuh, semua tetangga yang mungkin bertumpuk pasti ada di 2×2 sel di sekitar titik, bukan 3×3. Sel kedua dipilih dari sisi mana titik berada di dalam selnya (<code>fx - cx &gt;= 0.5</code>).</li>
+  <li><b>Maksimal 12 tetangga.</b> Di tengah gerombolan padat, mengecek 12 sudah cukup untuk dorongan yang meyakinkan.</li>
+  <li><b>Bergiliran (stagger).</b> <code>separation_stride = 2</code>: frame ganjil memproses musuh ganjil, frame genap yang genap. Separasi adalah efek visual yang lembut; setengah frekuensi tidak terlihat bedanya, biayanya setengah.</li>
+</ol>
+<p>Dorongan dibatasi <code>limit_length(0.3)</code> per frame supaya musuh tidak "meledak" keluar saat banyak yang bertumpuk sekaligus.</p>
+
+<h2 id="aura">Langkah 9: senjata pertama, Holy Aura</h2>
+<p>Senjata adalah node anak <code>Player/Weapons</code>, jadi otomatis ikut bergerak bersama pemain. Kelas dasar <code>Weapon</code> di Fase 1 nyaris kosong:</p>
+<div class="code" data-src="weapons/weapon.gd" data-ref="3f048ff"></div><!--/code-->
+<p>Statistiknya di <code>WeaponData</code> (Resource), perilakunya di scene + skrip turunan <code>Weapon</code>. Scene <code>weapons/aura/aura_weapon.tscn</code>: root Node3D dengan skrip aura, child <code>Visual</code> (MeshInstance3D, PlaneMesh 2×2 rebah, <code>material_override</code> = ShaderMaterial dengan <code>shaders/aura.gdshader</code>).</p>
+<div class="code" data-src="weapons/aura/aura_weapon.gd" data-ref="3f048ff"></div><!--/code-->
+<p>Damage tidak dicek tiap frame. Aura menunggu timer, lalu satu <code>query_circle</code> mengambil semua musuh di radius. Setiap hit melewati satu fungsi, <code>damage_enemy</code>, yang mengurangi HP, menyalakan hit flash, dan menambah knockback. Semua senjata yang datang kemudian memakai jalur yang sama.</p>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-ref="3f048ff" data-from="^func damage_enemy" data-to="^func collide_player"></div><!--/code-->
+<div class="demo" data-demo="aura"></div>
+<p>Shader aura menggambar cakram dengan tepi berkuantisasi piksel (<code>pixel_steps = radius × 2 × 16</code>, jadi resolusi cakram cocok dengan 16 px per unit), cincin rune berputar, dan riak. <code>blend_add</code> + warna di atas 1 membuat glow WorldEnvironment menangkapnya.</p>
+<div class="code" data-src="shaders/aura.gdshader"></div><!--/code-->
+
+<h2 id="director">Langkah 10: SpawnDirector sederhana</h2>
+<p>Fase 1 memakai laju spawn yang naik linear terhadap waktu. Laju dihitung dalam spawn per detik dan dikumpulkan di <b>akumulator</b>: setiap frame <code>_acc += laju · dt</code>, dan selama akumulator ≥ 1 kita spawn satu cluster lalu menguranginya. Dengan cara ini 2,5 spawn/detik benar-benar menghasilkan 2,5 per detik, berapa pun FPS-nya.</p>
+<div class="code" data-src="enemies/spawn_director.gd" data-ref="3f048ff" data-from="^@export var enemy_pool" data-to="^## Debug/stress"></div><!--/code-->
+<p>Musuh muncul berkelompok (3–7) di cincin radius 20, sedikit di luar layar (layar setinggi 13 unit). Fase 5 mengganti ini dengan tabel wave berbasis data.</p>
+
+<h2 id="game-process">Langkah 11: Game memegang urutan</h2>
+<p>Terakhir, tempel <code>core/game.gd</code> di root <code>Main</code>. Inilah versi Fase 1 lengkap: perhatikan bahwa <b>tidak ada sistem lain yang punya <code>_process</code></b>.</p>
+<div class="code" data-src="core/game.gd" data-ref="3f048ff" data-from="^func _process" data-to="^func _unhandled_input"></div><!--/code-->
+<div class="callout"><span class="tag">Konsep · kenapa satu pemilik urutan</span><p>Kalau tiap node punya <code>_process</code>, urutan pemanggilannya ditentukan posisi di pohon scene. Memindahkan satu node di editor bisa membuat senjata membaca posisi musuh frame lalu, atau gem jatuh di posisi yang sudah diganti slot lain. Dengan satu daftar di <code>Game._process</code>, urutannya terbaca dari atas ke bawah, bisa diuji, dan perubahan disengaja. Bonus: pause cukup satu baris (<code>if get_tree().paused: return</code>), dan hit-stop di Fase 6 cukup melewati semua kecuali kamera.</p></div>
+<p><code>dt</code> dibatasi <code>1/20</code> detik. Kalau game tersendat (misalnya jendela diseret), satu frame panjang tidak membuat musuh melompat menembus pemain.</p>
+
+<h2 id="decor">Dekorasi tak berujung</h2>
+<p><code>DecorField</code> menggambar rumput, batu, jamur, dan nisan dengan teknik yang sama (MultiMesh + shader billboard), tapi hanya menulis ulang buffer saat pemain pindah petak 40×40. Satu petak acak diulang 3×3 di sekitar pemain.</p>
+<div class="code" data-src="world/decor_field.gd" data-from="^func tick"></div><!--/code-->
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li>Tekan <kbd>F5</kbd>. Pemain berjalan dengan WASD, kamera mengikuti dengan halus, rumput tidak pernah habis.</li>
+    <li>Musuh muncul dari luar layar, mengejar, tidak menumpuk jadi satu titik, berkedip putih saat kena aura, dan terdorong keluar.</li>
+    <li>Label debug menunjukkan FPS dan jumlah musuh. <kbd>F1</kbd> menambah 500 musuh. Di Fase 1 game ini tetap di atas 60 FPS dengan lebih dari 1000 musuh di PC desktop biasa.</li>
+  </ul>
+</div>
+<figure><img src="assets/img/stress.webp" alt="Stress test HEAD: lebih dari 1000 musuh di sekitar pemain, panel debug menunjukkan jumlah musuh" width="1280" height="720" loading="lazy"><figcaption>Stress test di HEAD (bukan Fase 1): 1000–1270 musuh hidup, vsync mati, terukur 66–116 FPS dalam editor.</figcaption></figure>
+
+<div class="mistakes"><span class="tag">Kesalahan umum &amp; cara debug</span>
+  <ul>
+    <li><b>Musuh tidak terlihat sama sekali.</b> Cek urutan: <code>instance_count</code> sudah diisi sebelum <code>multimesh_set_buffer</code>? <code>visible_instance_count</code> diisi <code>n</code>? Ukuran buffer harus persis <code>instance_count × 16</code>; kalau tidak, Godot mencetak error di Output.</li>
+    <li><b>Semua musuh menumpuk di titik (0,0) atau gepeng.</b> Indeks buffer salah. Posisi ada di indeks 3 dan 11, skala di 0, 5, 10. Pakai demo buffer di atas untuk mengecek.</li>
+    <li><b>Musuh hilang saat kamera bergerak jauh.</b> Lupa <code>custom_aabb</code>: Godot meng-<i>cull</i> MultiMesh berdasarkan AABB lama.</li>
+    <li><b>Sprite terlihat pendek/gepeng.</b> <code>y_stretch</code> atau scale Y Sprite3D tidak 1,55.</li>
+    <li><b>FPS jatuh di 300 musuh.</b> Biasanya ada pembacaan Resource atau alokasi di loop panas (mis. <code>Array</code> baru per musuh). Buka <span class="menu-path">Debugger → Profiler</span>, jalankan, lihat fungsi dengan Self time terbesar.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Ubah <code>separation_stride</code> ke 1 dan 4 di Inspector EnemySwarm. Bandingkan FPS dengan 1500 musuh dan perhatikan apakah gerombolan terlihat berbeda.</li>
+    <li>Ubah <code>pitch_degrees</code> CameraRig ke 35. Sprite akan terlihat terlalu tinggi; hitung <code>y_stretch</code> yang benar (<code>1 / cos 35°</code>) dan terapkan di EnemySwarm dan Sprite3D pemain.</li>
+    <li>Buat <code>data/enemies/fast_ghoul.tres</code> (kecepatan 4, HP 6) dan masukkan ke <code>enemy_pool</code> SpawnDirector. Tanpa menyentuh kode.</li>
+  </ol>
+</div>

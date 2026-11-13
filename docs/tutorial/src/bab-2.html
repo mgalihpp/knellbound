@@ -1,0 +1,102 @@
+<!-- title: Bab 2 · XP, Stats dan Level Up | desc: Fase 2 Knellbound: gem XP dengan magnet, sistem Stats dan StatModifier, kurva XP, antrian level up, pause, dan layar pilihan dengan reroll, skip, banish. -->
+<span class="eyebrow">Bab 2 · Fase 2 · commit 2bd6ca3</span>
+<h1>XP, Stats dan Level Up</h1>
+<p class="lede">Game jadi game ketika ada pilihan. Musuh mati menjatuhkan gem, gem memberi XP, XP memberi level, dan tiap level pemain memilih satu dari tiga upgrade. Di balik itu ada dua sistem yang dipakai sampai Fase 8: <b>Stats</b> dan <b>pause</b>.</p>
+<div class="goal"><span class="tag">Tujuan</span>Gem biru/hijau/merah/ungu jatuh dari musuh, melompat kecil lalu tersedot ke pemain saat masuk radius magnet. Bar XP penuh → game berhenti, layar "LEVEL UP!" menampilkan 3–4 kartu (senjata atau relik), plus tombol Reroll/Skip/Banish. Bisa dimainkan dengan keyboard, mouse, dan gamepad.</div>
+<div class="shots">
+  <figure><img src="assets/img/p2_gems.webp" alt="Fase 2: gem biru berserakan di sekitar pemain dan gerombolan musuh" width="1280" height="720" loading="lazy"><figcaption>Fase 2: gem XP di sekitar pemain.</figcaption></figure>
+  <figure><img src="assets/img/p2_levelup.webp" alt="Layar level up versi Fase 2 dengan empat kartu dan tombol Reroll, Skip, Banish" width="1280" height="720" loading="lazy"><figcaption>Layar level up Fase 2 (sebelum tema Fase 7).</figcaption></figure>
+</div>
+
+<h2 id="gemfield">GemField: pola yang sama, objek yang berbeda</h2>
+<p>Gem dibuat persis seperti musuh: packed array paralel, swap-with-last, satu MultiMesh, layout buffer 16 float yang sama, shader billboard yang sama. Itu keuntungan pola yang konsisten: kamu sudah tahu 80% kode <code>pickups/gem_field.gd</code> sebelum membacanya.</p>
+<ol class="steps">
+  <li>Di <code>main.tscn</code> tambahkan Node3D <code>GemField</code>, tempel <code>pickups/gem_field.gd</code>, isi <code>sheet</code> = <code>art/sprites/gems.png</code> (baris = tier warna, kolom = frame kilau).</li>
+  <li>Hubungkan sinyal kematian di <code>Game._ready</code>: <code>swarm.enemy_died.connect(_on_enemy_died)</code>, lalu di handler panggil <code>gems.drop(at, data.xp_value)</code>.</li>
+  <li>Di <code>Game._process</code> setelah <code>flush_dead()</code>: <code>var xp := gems.tick(dt, player.pos2, magnet)</code>.</li>
+</ol>
+<div class="callout"><span class="tag">Konsep · signal</span><p>Sinyal adalah cara node memberi tahu "sesuatu terjadi" tanpa tahu siapa yang mendengar. <code>EnemySwarm</code> mendeklarasikan <code>signal enemy_died(position, data, flags)</code> dan memanggil <code>enemy_died.emit(...)</code>. Game yang menyambungkan sinyal itu ke fungsinya. Swarm tidak perlu tahu ada gem, efek, atau peti. Kalau besok kamu menambah sistem statistik, cukup sambungkan satu handler lagi.</p></div>
+<div class="code" data-src="pickups/gem_field.gd" data-from="^func drop" data-to="^func clear"></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">drop</b>Di atas <code>max_gems</code> (400), gem baru tidak dibuat; nilainya ditambahkan ke satu gem "bank" acak yang naik tier. Jumlah objek tetap terbatas walau 300 musuh mati per detik, dan pemain tetap mendapat semua XP-nya.</li>
+  <li><b class="ln">tick</b>Gem diam sampai <code>l2 &lt; magnet²</code> (membandingkan kuadrat jarak, tanpa akar). Saat tertangkap ia diberi kecepatan <b>menjauh</b> (<code>-d · pop_speed</code>), lalu tiap frame dipercepat menuju pemain. Hasilnya lompatan kecil yang memuaskan sebelum tersedot.</li>
+  <li><b class="ln">overshoot</b>Kalau langkah frame ini lebih panjang dari jarak tersisa (<code>v.length() * dt &gt;= dist</code>), gem langsung dikoleksi. Tanpa ini gem cepat bisa melewati pemain dan berputar-putar.</li>
+  <li><b class="ln">while</b>Loop memakai <code>while i &lt; count</code> dan <b>tidak</b> menaikkan <code>i</code> setelah menghapus, karena slot <code>i</code> sekarang berisi gem terakhir yang belum diproses.</li>
+</ul>
+<div class="demo" data-demo="gems"></div>
+<p>Di <code>upload()</code>, indeks 7 (origin.y) diisi gelombang sinus kecil: gem mengambang naik turun tanpa satu baris kode animasi pun di sisi CPU selain angka itu.</p>
+
+<h2 id="stats">Stats dan StatModifier</h2>
+<p>Begitu ada upgrade, pertanyaan desainnya: bagaimana "+10% damage" dari relik, "+10 max HP" dari karakter, dan "+15% damage" dari toko digabung tanpa saling menimpa? Jawaban proyek ini: <b>satu rumus untuk semua stat</b>.</p>
+<div class="callout"><span class="tag">Konsep · additive vs multiplicative</span><p><code>nilai = (base + Σflat) × (1 + Σpercent)</code>. Semua persen pada satu stat <b>dijumlah</b> dulu. Dua relik +10% = +20%, bukan 1,1 × 1,1 = +21%. Ini membuat tooltip mudah dihitung pemain dan mencegah stat meledak eksponensial saat ada puluhan sumber bonus. Karakter hanya mengubah <code>base</code>; semua yang lain adalah modifier.</p></div>
+<div class="code" data-src="core/stat_modifier.gd" data-to="^## Card text"></div><!--/code-->
+<div class="code" data-src="core/stats.gd" data-from="^var _base" data-to="^## .\+10% damage"></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">enum</b><code>Stats.Id</code> disimpan sebagai <b>angka</b> di file <code>.tres</code> (<code>stat = 0</code> = MIGHT). Karena itu ada aturan: tambah id baru <b>di akhir</b>, jangan pernah mengurutkan ulang. Menyisipkan di tengah akan diam-diam mengubah arti semua file data.</li>
+  <li><b class="ln">_value</b>Nilai akhir di-cache. <code>value(id)</code> hanya membaca array, jadi senjata boleh memanggilnya tiap frame. Hitung ulang terjadi hanya saat modifier ditambah.</li>
+  <li><b class="ln">times</b><code>add_modifier(m, -1)</code> membatalkan modifier; Fase 8 memakai <code>times = level</code> untuk upgrade toko.</li>
+</ul>
+<div class="demo" data-demo="stats"></div>
+<p>Relik (<code>PassiveData</code>) hanya daftar modifier. Ini isi lengkap <code>data/passives/bloodied_blade.tres</code>:</p>
+<div class="code" data-src="data/passives/bloodied_blade.tres"></div><!--/code-->
+<p>Senjata tidak membaca <code>data.damage</code> secara langsung, tapi lewat helper di kelas dasar <code>Weapon</code> yang menggabungkan data senjata dan Stats pemain. Satu tempat untuk rumus berarti semua senjata otomatis ikut relik baru.</p>
+<div class="code" data-src="weapons/weapon.gd" data-ref="2bd6ca3" data-from="^func damage" data-to="^func duration|^func projectile_speed"></div><!--/code-->
+
+<h2 id="leveling">Kurva XP</h2>
+<div class="code" data-src="core/leveling.gd"></div><!--/code-->
+<p>Kurvanya linear bertahap: +10 XP per level sampai level 20, +13 sampai 40, lalu +16. Level awal cepat (level 2 cukup 5 XP, satu-dua gerombolan), lalu melambat. <code>add()</code> memakai <code>while</code>, jadi satu gem bank berisi 2000 XP bisa memberi beberapa level sekaligus, dan fungsi itu <b>mengembalikan jumlahnya</b>. Game menyimpannya di antrian <code>pending_levels</code>.</p>
+<div class="demo" data-demo="xp"></div>
+
+<h2 id="pause">Pause: process_mode</h2>
+<div class="callout"><span class="tag">Konsep · SceneTree.paused dan process_mode</span><p>Saat <code>get_tree().paused = true</code>, Godot berhenti memanggil <code>_process</code>, <code>_input</code>, timer, dan tween pada node dengan <code>process_mode = PAUSABLE</code>. Mode default <code>INHERIT</code> mengikuti induk. Node dengan <code>ALWAYS</code> tetap jalan. Jadi layar level up (CanvasLayer) diberi <code>process_mode = ALWAYS</code> supaya bisa menerima input dan menjalankan tween pop-in walau dunia berhenti.</p></div>
+<p>Game sendiri juga <code>ALWAYS</code> (ia perlu menerima tombol pause untuk <i>unpause</i>), lalu memeriksa sendiri di baris pertama <code>_process</code>:</p>
+<div class="code" data-src="core/game.gd" data-from="^func _ready" data-to="get_tree\(\).paused = false" data-hl="113"></div><!--/code-->
+<div class="code" data-src="core/game.gd" data-from="^func _process" data-to="if _hit_stop > 0.0"></div><!--/code-->
+<p>Layar tidak dibuka di tengah frame. Level up dicatat (<code>pending_levels += leveling.add(...)</code>), lalu di <b>akhir</b> frame, setelah HUD diperbarui:</p>
+<div class="code" data-src="core/game.gd" data-from="^\tif is_over:" data-to="^func _unhandled_input"></div><!--/code-->
+<div class="code" data-src="core/game.gd" data-from="^## Level the current screen is for" data-to="^func _on_reroll"></div><!--/code-->
+<div class="demo" data-demo="pause"></div>
+<p>Kenapa antrian, bukan langsung? Karena satu gem bisa memberi tiga level, dan pemain harus memilih tiga kali. Dengan antrian, setiap pilihan cukup mengurangi satu dan menawarkan lagi; dunia baru jalan setelah antrian habis. Fase 4 menambahkan antrian kedua (<code>pending_chests</code>) dengan pola yang persis sama.</p>
+
+<h2 id="upgrade-offer">UpgradeOffer dan UpgradePool</h2>
+<p>Satu kartu = satu <code>UpgradeOffer</code> (RefCounted, bukan Resource: ia dibuat saat runtime dan dibuang setelah dipilih). Ia tahu jenisnya, item yang di-upgrade, level berikutnya, dan cara menerapkannya.</p>
+<div class="code" data-src="core/upgrade_offer.gd" data-ref="2bd6ca3" data-from="^enum Kind" data-to="^static func for_weapon"></div><!--/code-->
+<div class="code" data-src="core/upgrade_offer.gd" data-ref="2bd6ca3" data-from="^func apply"></div><!--/code-->
+<p><code>UpgradePool</code> (Resource, <code>data/upgrade_pool.tres</code>) adalah daftar semua senjata dan relik yang bisa muncul. <code>roll()</code> mengumpulkan kandidat: level berikutnya dari item yang dimiliki, plus item baru selama slot (6 senjata, 6 relik) masih kosong, membuang yang di-banish, mengacak, lalu mengambil 3 (atau 4, peluang 10% × LUCK).</p>
+<div class="code" data-src="core/upgrade_pool.gd" data-ref="2bd6ca3" data-from="^func roll"></div><!--/code-->
+
+<h2 id="view-only">Layar sebagai "view"</h2>
+<p>Aturan yang dipegang sampai Fase 8: <b>layar hanya menampilkan dan memancarkan sinyal</b>. <code>LevelUpScreen</code> tidak tahu sisa reroll, tidak mengubah pemain, tidak meng-unpause. Ia emit <code>picked(offer)</code>, <code>reroll_requested</code>, <code>skip_requested</code>, <code>banish_requested(offer)</code>; Game yang memegang aturannya.</p>
+<div class="code" data-src="core/game.gd" data-from="^func _on_offer_picked" data-to="^func _on_enemy_died"></div><!--/code-->
+<ol class="steps">
+  <li>Scene baru, root <b>CanvasLayer</b> <code>LevelUpScreen</code> (layer 10), <code>process_mode</code> = Always, tempel <code>ui/level_up_screen.gd</code>. Simpan <code>ui/level_up_screen.tscn</code>.</li>
+  <li>Isi: <code>CenterContainer</code> (anchor Full Rect) → <code>PanelContainer</code> (%Panel) → <code>VBoxContainer</code> berisi Label judul, Label %Subtitle, VBoxContainer %Cards, HBoxContainer berisi tiga Button (%RerollButton, %SkipButton, %BanishButton).</li>
+  <li>Klik kanan node → <span class="menu-path">Access as Unique Name</span> untuk node yang dipakai skrip. Di kode cukup <code>%Panel</code>, tidak perlu path panjang yang rusak saat struktur berubah.</li>
+  <li>Kartu dibuat dari kode di <code>_ready</code> (maksimal 4 Button), lalu diisi ulang tiap <code>present()</code>.</li>
+  <li>Instance layar ini di <code>main.tscn</code>; sambungkan sinyalnya di <code>Game._ready</code>.</li>
+</ol>
+<div class="code" data-src="ui/level_up_screen.gd" data-from="^func _unhandled_input" data-to="^func _on_card_pressed|^func _guarded|^func _toggle"></div><!--/code-->
+<p>Detail input yang membuat layar terasa rapi: tombol angka <kbd>1</kbd>–<kbd>4</kbd> memilih kartu langsung; <code>INPUT_GRACE_MS = 300</code> menelan tekanan tombol selama 0,3 detik setelah layar muncul (supaya <kbd>Space</kbd> yang masih ditekan dari gameplay tidak langsung memilih kartu); dan <code>ui_accept</code> diberi Joypad A di Input Map.</p>
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li>Gem muncul di tempat musuh mati, terlihat melompat kecil sebelum tersedot.</li>
+    <li>Bar XP di atas layar terisi; saat penuh, semua musuh berhenti dan layar level up muncul. Tween pop-in tetap berjalan (bukti <code>process_mode = ALWAYS</code>).</li>
+    <li>Pilih Bloodied Blade: angka damage aura naik 10%. Tekan <kbd>F4</kbd> (debug +1 level) beberapa kali dengan cepat: layar muncul berulang sampai antrian habis.</li>
+  </ul>
+</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>Layar level up muncul tapi tidak bisa diklik / tween membeku.</b> <code>process_mode</code> layar masih Inherit. Set ke Always di Inspector.</li>
+    <li><b>Game tidak bisa di-unpause.</b> Node yang membaca tombol pause ikut berhenti. Game harus Always dan memeriksa pause sendiri.</li>
+    <li><b>Relik "tidak berefek".</b> Senjata membaca <code>data.damage</code> langsung, bukan <code>damage()</code>. Cari dengan <span class="menu-path">Search → Find in Files</span> untuk <code>data.damage</code>.</li>
+    <li><b>File relik rusak setelah menambah stat.</b> Id disisipkan di tengah enum; semua <code>stat = n</code> di .tres sekarang menunjuk stat lain.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Buat relik "Iron Tooth" (+0,5 flat ARMOR) hanya dengan file <code>.tres</code> dan menambahkannya ke <code>upgrade_pool.tres</code>.</li>
+    <li>Ubah <code>max_gems</code> GemField jadi 50 lalu bunuh 500 musuh dengan <kbd>F1</kbd>. Perhatikan gem bank berganti warna ke merah/ungu.</li>
+    <li>Ubah kurva di <code>xp_required</code> supaya level 1–5 butuh 3 XP saja. Apa efeknya pada ritme 30 detik pertama?</li>
+  </ol>
+</div>

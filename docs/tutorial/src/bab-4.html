@@ -1,0 +1,66 @@
+<!-- title: Bab 4 · Pasif, Evolusi dan Peti | desc: Fase 4 Knellbound: 13 relik pasif dengan teks otomatis, resep evolusi senjata sebagai data, varian scene dengan skrip yang sama, peti, dan loadout HUD. -->
+<span class="eyebrow">Bab 4 · Fase 4 · commit 35887be</span>
+<h1>Pasif, Evolusi dan Peti</h1>
+<p class="lede">Survivors-like hidup dari kombinasi. Fase 4 menambah 7 relik sehingga setiap stat gameplay punya relik, resep evolusi (senjata level maks + relik tertentu = senjata baru), peti yang memberi hadiah, dan baris ikon loadout di HUD.</p>
+<div class="goal"><span class="tag">Tujuan</span>Holy Aura level 8 + Heart Locket → buka peti → Seraph's Halo (aura emas yang menyembuhkan). Begitu juga untuk empat senjata lain. HUD menampilkan 6 slot senjata + 6 slot relik dengan level, MAX, dan bingkai emas untuk evolusi.</div>
+<div class="shots">
+  <figure><img src="assets/img/p4_chest.webp" alt="Layar peti Fase 4: EVOLUTION! Eternal Rosary, Vesper Beads plus Votive Candle" width="1280" height="720" loading="lazy"><figcaption>Layar peti Fase 4 menampilkan evolusi Eternal Rosary.</figcaption></figure>
+  <figure><img src="assets/img/p4_evolved.webp" alt="Fase 4 setelah lima evolusi: aura emas, salib emas, kolam emas, manik garnet, kipas pisau merah" width="1280" height="720" loading="lazy"><figcaption>Kelima evolusi aktif bersamaan; loadout HUD di kiri atas.</figcaption></figure>
+</div>
+
+<h2 id="pasif">13 relik, satu kelas</h2>
+<p>Relik adalah <code>PassiveData</code>: daftar <code>StatModifier</code> yang diterapkan sekali lagi setiap naik level. Ke-13 relik menutupi semua stat gameplay: might, area, cooldown, amount, projectile speed, duration, move speed, max HP, recovery, armor, luck, magnet, crit.</p>
+<div class="code" data-src="passives/passive_data.gd"></div><!--/code-->
+<p>Teks kartu ditulis manusia hanya untuk level 1 (satu baris, kartu tingginya tetap). Level 2 ke atas dibuat otomatis dari angka modifier, misalnya <i>"+10% damage (total +30%)"</i>. Itu mencegah teks dan angka tidak cocok, masalah klasik saat menyeimbangkan game.</p>
+<div class="code" data-src="core/stats.gd" data-from="^## .+10% damage"></div><!--/code-->
+<p>Hunter's Eye memberi dua modifier (crit chance + crit damage); crit dihitung di <code>Weapon.roll_damage()</code> dan bendera <code>last_crit</code> diteruskan ke <code>damage_enemy</code> untuk angka damage kuning di Fase 6.</p>
+
+<h2 id="evolusi">Evolusi sebagai resep data</h2>
+<div class="code" data-src="passives/evolution_data.gd"></div><!--/code-->
+<div class="code" data-src="data/evolutions/thornstorm.tres"></div><!--/code-->
+<p>Yang menarik adalah bagaimana senjata evolusi dibuat tanpa skrip baru. Thornstorm adalah <b>varian scene</b> dari pisau: skrip yang sama, nilai <code>@export</code> berbeda.</p>
+<div class="code" data-src="weapons/knives/thornstorm.tscn"></div><!--/code-->
+<p><code>fan = 3</code>: setiap lemparan jadi kipas 3 pisau; <code>sprite_row = 4</code>: baris duri merah di sheet proyektil. Kemampuan baru ditambahkan ke skrip dasar sebagai export dengan default "mati" (<code>fan := 1</code>), lalu varian menyalakannya. Daftar lengkapnya: aura <code>heal_per_pulse</code>, knives <code>fan</code>, orbit <code>rings</code>/<code>continuous</code>, vial <code>splash_count</code>/<code>drift_speed</code>, cross <code>endless</code>/<code>burst_count</code>.</p>
+<ol class="steps">
+  <li>Klik kanan <code>weapons/knives/knives_weapon.tscn</code> → <span class="menu-path">New Inherited Scene</span>, atau duplikat file .tscn-nya. Ubah nama root jadi <code>Thornstorm</code>, set export di Inspector, simpan <code>thornstorm.tscn</code>.</li>
+  <li>Buat <code>data/weapons/thornstorm.tres</code> (WeaponData, <code>is_evolution = true</code>, <code>scene</code> = thornstorm.tscn, tanpa <code>levels</code> → <code>max_level = 1</code>). Jangan masukkan ke <code>UpgradePool.weapons</code>: evolusi hanya dari peti.</li>
+  <li>Buat <code>data/evolutions/thornstorm.tres</code> (EvolutionData: base, passive, result) dan masukkan ke <code>UpgradePool.evolutions</code>.</li>
+</ol>
+
+<h3 id="evolve">Mengganti senjata di slot yang sama</h3>
+<div class="code" data-src="player/player.gd" data-from="^## Replaces evo.base" data-to="^func _make_weapon"></div><!--/code-->
+<p>Ada jebakan: proyektil Silverthorn yang masih terbang menyimpan referensi <code>source</code> ke node senjata lama, yang akan di-<code>queue_free</code>. Proyektil itu nanti memanggil <code>source.roll_damage()</code> pada objek yang sudah dibebaskan → crash. Solusinya sinyal <code>weapon_replaced(old, new)</code>, yang Game teruskan ke ProjectileField:</p>
+<div class="code" data-src="weapons/projectile_field.gd" data-from="^## Live projectiles of .old." data-to="^func _remove_at"></div><!--/code-->
+<p>Di <code>Game._ready</code>: <code>player.weapon_replaced.connect(projectiles.replace_source)</code>. Satu baris, dan referensi menggantung hilang.</p>
+
+<h2 id="peti">Peti</h2>
+<p>Peti adalah pickup di dunia (<code>PickupField</code>, packed array + MultiMesh lagi). Saat diambil, Game menambah <code>pending_chests</code>, dan di akhir frame membuka layar peti dengan pola antrian yang sama seperti level up. Isi peti diundi oleh Game, langsung diterapkan, lalu <b>ditampilkan</b> oleh <code>ChestScreen</code> yang hanya view:</p>
+<div class="code" data-src="core/game.gd" data-from="^## Rolls and applies one chest" data-to="^func _on_player_died"></div><!--/code-->
+<div class="code" data-src="core/upgrade_pool.gd" data-from="^## One chest item" data-to="^## Next level of every owned"></div><!--/code-->
+<p>Urutan prioritas: evolusi yang siap lebih dulu (diacak supaya tidak selalu evolusi yang sama), kalau tidak ada maka level acak dari item yang dimiliki, kalau semua maks maka "Hearty Meal" (heal 30%). <code>UpgradePool.owns_line()</code> mencegah Silverthorn ditawarkan lagi setelah pemain memegang Thornstorm.</p>
+
+<h2 id="loadout">Loadout di HUD</h2>
+<p>12 slot ikon dibuat dari kode di <code>Hud._ready</code>, lalu diisi tiap frame dari <code>player.weapons</code> dan <code>player.passives</code>. Membuat node UI dari kode berguna saat jumlahnya ditentukan konstanta (<code>Player.MAX_WEAPONS</code>), bukan oleh desainer.</p>
+<div class="code" data-src="ui/hud.gd" data-from="^func _refresh_loadout" data-to="^func _refresh_arrows"></div><!--/code-->
+<p>Versi Fase 7 hanya mengganti variasi tema dan pips saat nilainya berubah. Mengubah <code>theme_type_variation</code> setiap frame memicu perhitungan ulang gaya; di 1100 musuh optimasi kecil itu menghemat sekitar 1% FPS.</p>
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li><kbd>F5</kbd> (semua senjata maks) lalu <kbd>F7</kbd> (beri relik pasangan evolusi), lalu <kbd>F6</kbd> beberapa kali (jatuhkan peti). Setiap peti berisi satu evolusi sampai kelimanya selesai.</li>
+    <li>Slot evolusi di HUD berbingkai emas. Seraph's Halo menyembuhkan saat pulsa mengenai musuh.</li>
+    <li>Pisau yang sedang terbang saat Thornstorm muncul tetap memberi damage tanpa error.</li>
+  </ul>
+</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>"Attempt to call function on a previously freed instance".</b> Ada yang masih memegang node senjata lama. Cari semua tempat yang menyimpan <code>Weapon</code> (proyektil, zona, statistik) dan pindahkan ke yang baru.</li>
+    <li><b>Evolusi ditawarkan di level up.</b> WeaponData evolusi masuk ke <code>UpgradePool.weapons</code>. Evolusi hanya di <code>evolutions</code>.</li>
+    <li><b>Varian scene tidak berubah.</b> Export diubah di skrip, bukan di node varian. Nilai di .tscn varian menimpa default skrip.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Buat evolusi keenam untuk Holy Aura dengan relik lain (mis. Lodestone) sebagai varian <code>aura_weapon.tscn</code> dengan radius dua kali lipat dan warna lain lewat parameter shader. Tanpa skrip baru.</li>
+    <li>Ubah <code>chest_five_chance</code> di Inspector Main ke 1,0 dan buka peti. Apa yang terjadi saat item yang bisa diupgrade habis di tengah undian lima item?</li>
+  </ol>
+</div>

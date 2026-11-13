@@ -1,0 +1,105 @@
+<!-- title: Bab 7 · UI, Tema dan Alur Layar | desc: Fase 7 Knellbound: Theme project-wide dengan StyleBoxTexture 9-slice dan variasi tipe, font bitmap buatan sendiri, HUD, pause dan options, ringkasan run, title, SceneFader, autoload Settings. -->
+<span class="eyebrow">Bab 7 · Fase 7 · commit 0c823de</span>
+<h1>UI, Tema dan Alur Layar</h1>
+<p class="lede">Sampai Fase 6 UI memakai tampilan default Godot. Fase 7 memberi seluruh game satu identitas visual lewat satu file Theme, menambah layar judul, menu pause dengan opsi, ringkasan run, dan transisi fade antar-scene.</p>
+<div class="goal"><span class="tag">Tujuan</span>Game dibuka di layar judul gotik. Start → (Fase 8: pilih hunter) → run. Esc membuka menu pause dengan statistik dan loadout. Options mengatur volume, shake, angka damage, fullscreen. Mati → layar "FALLEN" dengan damage per senjata. Semua pindah scene memudar ke hitam.</div>
+<div class="shots">
+  <figure><img src="assets/img/p7_title.webp" alt="Layar judul Knellbound: bulan darah, kuburan, menu Start, Reliquary, Options, Quit" width="1280" height="720" loading="lazy"><figcaption>Layar judul (HEAD).</figcaption></figure>
+  <figure><img src="assets/img/p7_pause.webp" alt="Menu pause: Resume, Options, Restart, Quit to Title, panel statistik dan loadout" width="1280" height="720" loading="lazy"><figcaption>Menu pause dengan statistik pemain dan loadout.</figcaption></figure>
+  <figure><img src="assets/img/p7_gameover.webp" alt="Layar FALLEN: waktu bertahan 10:47, level 6, 2614 kill, damage per senjata" width="1280" height="720" loading="lazy"><figcaption>Ringkasan run: damage per senjata dihitung di <code>damage_enemy(source)</code>.</figcaption></figure>
+  <figure><img src="assets/img/run_early.webp" alt="HUD lengkap: bar XP penuh lebar, HP, loadout, timer besar, kill dan koin" width="1280" height="720" loading="lazy"><figcaption>HUD Fase 7: bar XP selebar layar, HP, loadout, timer, kill, koin, HP bar di bawah pemain.</figcaption></figure>
+  <figure><img src="assets/img/head_levelup.webp" alt="Layar level up bertema: kartu Raven Feather, Silverthorn Knives LV 2, Sand Clock dengan badge dan pips" width="1280" height="720" loading="lazy"><figcaption>Layar level up setelah tema: kartu <code>Card</code> berisi OfferView (ikon, badge NEW/LV, pips). Bandingkan dengan versi Fase 2 di Bab 2.</figcaption></figure>
+  <figure><img src="assets/img/head_chest.webp" alt="Layar peti bertema menampilkan hadiah" width="1280" height="720" loading="lazy"><figcaption>ChestScreen bertema: baris OfferView di InsetPanel.</figcaption></figure>
+</div>
+
+<h2 id="theme">Theme: satu file untuk semua Control</h2>
+<div class="callout"><span class="tag">Konsep · Theme dan type variation</span><p><b>Theme</b> adalah Resource berisi gaya per tipe Control: warna font Label, StyleBox tombol untuk normal/hover/pressed/focus, dst. Jika dipasang di <span class="menu-path">Project Settings → GUI → Theme → Custom</span>, <b>semua</b> Control di game memakainya tanpa override satu per satu. <b>Type variation</b> adalah "subtipe" bernama, misalnya <code>TitleLabel</code> yang mewarisi Label tapi berukuran 72 dan berwarna emas. Di Inspector Label kamu tinggal isi <code>theme_type_variation = TitleLabel</code>.</p></div>
+<div class="code" data-src="ui/theme/game_theme.tres" data-from="^\[resource\]" data-to="^BadgeEvo"></div><!--/code-->
+<div class="code" data-src="ui/theme/game_theme.tres" data-from="^TitleLabel/base_type"></div><!--/code-->
+<p>Variasi yang tersedia: Label <code>TitleLabel</code> <code>HeaderLabel</code> <code>TimerLabel</code> <code>GoldLabel</code> <code>MutedLabel</code> <code>SmallLabel</code>; Button <code>Card</code>; PanelContainer <code>BloodPanel</code> <code>HolyPanel</code> <code>InsetPanel</code> + badge; Panel <code>SlotPanel</code> <code>SlotMax</code> <code>SlotEvo</code>; ProgressBar <code>XpBar</code> <code>HpBar</code> <code>BossBar</code>.</p>
+
+<h3 id="nine-slice">Panel 9-slice dari pixel art</h3>
+<p>Panel dan tombol adalah <b>StyleBoxTexture</b>: gambar kecil yang dipotong 9 bagian. Sudut tetap, sisi dan tengah meregang. <code>texture_margin</code> = lebar sudut dalam piksel tekstur; <code>content_margin</code> = jarak isi dari tepi.</p>
+<div class="code" data-src="ui/theme/game_theme.tres" data-from="^\[sub_resource type=.StyleBoxTexture. id=.sb_panel.\]" data-to="^\[sub_resource type=.StyleBoxTexture. id=.sb_panel_blood.\]"></div><!--/code-->
+<p>Art UI digenerate oleh <code>gen_sprites.ui_panels()</code> dengan aturan 1 piksel art = 2 piksel layar di 720p. Karena teksturnya digambar 2× lebih kecil dan diperbesar oleh StyleBox, margin di tema = margin art × 2.</p>
+<ol class="steps">
+  <li>Klik kanan <code>ui/theme/</code> → <span class="menu-path">Create New → Resource → Theme</span>, simpan <code>game_theme.tres</code>. Klik dua kali: panel Theme editor terbuka di bawah.</li>
+  <li><span class="menu-path">+ Add Type</span> → Button. Di tab StyleBox, isi <code>normal</code>/<code>hover</code>/<code>pressed</code>/<code>focus</code>/<code>disabled</code> dengan New StyleBoxTexture dan tekstur dari <code>art/ui/</code>.</li>
+  <li>Untuk variasi: Add Type <code>TitleLabel</code>, lalu di properti <b>Base Type</b> pilih Label.</li>
+  <li>Pasang di Project Settings → GUI → Theme → Custom.</li>
+</ol>
+
+<h3 id="font">Font bitmap buatan sendiri</h3>
+<p>Font adalah BMFont (<code>art/ui/font.fnt</code> + <code>font.png</code>) yang juga digenerate oleh <code>gen_sprites.font_sheet()</code>: desain 5×7 sendiri, huruf besar/kecil, angka, tanda baca, dan simbol <code>· — × →</code>, outline gelap 1 px sudah di-bake ke gambar. Keuntungan: tidak ada lisensi pihak ketiga, dan font pasti cocok dengan gaya pixel art.</p>
+<ul>
+  <li>Ukuran dasar 12. Di tab Import font, <code>scaling_mode = Integer</code>: hanya kelipatan bulat yang tajam. Pakai 12, 24, 48, 72.</li>
+  <li>Warna font = modulasi isi putih glyph, outline tetap gelap. Bayangan lewat <code>font_shadow_color</code> karena properti outline font tidak berlaku untuk bitmap font.</li>
+</ul>
+
+<h2 id="layout">Layout yang tahan ukuran layar</h2>
+<p>Stretch <code>canvas_items</code> + <code>expand</code> (Bab 0) menskalakan UI dari 1280×720. Di dalam scene, semua layar memakai <b>anchor</b> dan <b>container</b>, bukan posisi absolut: <code>CenterContainer</code> memusatkan panel, <code>VBoxContainer</code>/<code>HBoxContainer</code> menyusun anak dengan <code>separation</code>, <code>MarginContainer</code> memberi tepi. Saat jendela 21:9, panel tetap di tengah, HUD tetap di sudut.</p>
+<div class="callout"><span class="tag">Konsep · CanvasLayer</span><p>UI di game 3D diletakkan di <b>CanvasLayer</b>: lapisan 2D di atas viewport 3D yang tidak ikut kamera. Nomor <code>layer</code> menentukan urutan: HUD 1, LevelUpScreen 10, ChestScreen 11, PauseMenu dan GameOverScreen 20, SceneFader 128 (selalu paling atas).</p></div>
+
+<h2 id="hud">HUD hemat</h2>
+<p>HUD di-refresh dari <code>Game._process</code> (urutan tetap satu tempat). Memformat string tiap frame itu murah untuk 5 label, tapi mengganti <code>text</code> memicu perhitungan ulang layout. Jadi teks hanya ditulis ulang saat nilai bulatnya berubah:</p>
+<div class="code" data-src="ui/hud.gd" data-from="^func refresh" data-to="^func _refresh_boss"></div><!--/code-->
+<p>HP bar di bawah pemain adalah <code>WorldHpBar</code>: quad billboard dengan shader <code>world_bar.gdshader</code> tanpa depth test, dan parameter shader-nya hanya ditulis saat jumlah piksel isi berubah.</p>
+
+<h2 id="pause-menu">Menu pause dan Options</h2>
+<p>Semua layar mengikuti aturan Fase 2: view yang memancarkan sinyal. PauseMenu emit <code>resume_requested</code>, <code>restart_requested</code>, <code>quit_requested</code>; Game yang meng-unpause, membank koin, dan pindah scene.</p>
+<div class="code" data-src="core/game.gd" data-from="^func _set_paused" data-to="^func _apply_settings"></div><!--/code-->
+<p><code>OptionsPanel</code> dipakai di dua tempat (title dan pause), jadi ia scene sendiri yang di-instance dua kali. Ia tidak menyimpan apa pun: ia memanggil setter di autoload <code>Settings</code>.</p>
+
+<h2 id="autoload">Autoload: Settings dan SceneFader</h2>
+<div class="callout"><span class="tag">Konsep · autoload (singleton)</span><p>Autoload adalah node yang Godot buat sekali saat game mulai dan letakkan di <code>/root</code>, di luar scene yang sedang aktif. Ia bertahan saat scene diganti dan bisa diakses dari mana saja dengan namanya (<code>Settings.screen_shake</code>). Daftarkan di <span class="menu-path">Project Settings → Globals → Autoload</span>: pilih skrip, beri nama, Add. Urutan di daftar = urutan <code>_ready</code>, dan itu penting di Fase 8.</p></div>
+<div class="code" data-src="autoload/settings.gd" data-from="^signal changed" data-to="^func _load"></div><!--/code-->
+<p>Settings memancarkan <code>changed</code>; Game menyambungkannya ke <code>_apply_settings()</code> yang meneruskan dua opsi gameplay ke CameraRig dan DamageNumberField. Volume diterapkan langsung ke bus audio (<code>AudioServer.set_bus_volume_db</code>). Di Fase 7 nilai disimpan di <code>user://settings.cfg</code>; Fase 8 memindahkannya ke dalam save.</p>
+<p><code>SceneFader</code> adalah autoload CanvasLayer berisi satu ColorRect hitam. Semua pergantian scene lewat sini:</p>
+<div class="code" data-src="autoload/scene_fader.gd"></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">await</b><code>await t.finished</code> menunggu tween selesai tanpa memblokir game. Fungsi berlanjut di frame tween selesai. Ini coroutine GDScript.</li>
+  <li><b class="ln">paused</b>Tree di-unpause sebelum ganti scene. Kalau tidak, scene baru (mis. title dari menu pause) lahir dalam keadaan pause.</li>
+  <li><b class="ln">scene_changed</b><code>change_scene_to_file</code> menukar scene di akhir frame; menunggu sinyal <code>scene_changed</code> memastikan fade-in dimulai saat scene baru sudah ada.</li>
+  <li><b class="ln">_input</b>Selama fade, input ditelan. Klik ganda pada "Retry" tidak memulai dua pergantian.</li>
+</ul>
+
+<h2 id="alur-scene">Alur scene</h2>
+<div class="diagram">
+<svg viewBox="0 0 820 230" role="img" aria-label="Alur scene: title, pilih hunter, run, toko">
+  <defs><marker id="ah7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="muted"></path></marker></defs>
+  <rect x="20" y="80" width="150" height="60" rx="6" class="box-gold"></rect><text x="95" y="106" text-anchor="middle" font-weight="700">title.tscn</text><text x="95" y="126" text-anchor="middle" font-size="11" class="muted">main scene</text>
+  <rect x="250" y="20" width="190" height="60" rx="6" class="box"></rect><text x="345" y="46" text-anchor="middle" font-weight="700">character_select.tscn</text><text x="345" y="66" text-anchor="middle" font-size="11" class="muted">Fase 8</text>
+  <rect x="520" y="80" width="150" height="60" rx="6" class="box-hot"></rect><text x="595" y="106" text-anchor="middle" font-weight="700">main.tscn</text><text x="595" y="126" text-anchor="middle" font-size="11" class="muted">Game (run)</text>
+  <rect x="250" y="150" width="190" height="60" rx="6" class="box"></rect><text x="345" y="176" text-anchor="middle" font-weight="700">shop.tscn</text><text x="345" y="196" text-anchor="middle" font-size="11" class="muted">Reliquary, Fase 8</text>
+  <path d="M170,100 L248,58" class="arrow" marker-end="url(#ah7)"></path><text x="190" y="66" font-size="11" class="muted">Start</text>
+  <path d="M440,58 L518,96" class="arrow" marker-end="url(#ah7)"></path><text x="470" y="62" font-size="11" class="muted">pilih hunter</text>
+  <path d="M170,124 L248,170" class="arrow" marker-end="url(#ah7)"></path><text x="166" y="166" font-size="11" class="muted">Reliquary</text>
+  <path d="M250,192 C200,200 140,170 120,142" class="arrow" marker-end="url(#ah7)"></path><text x="150" y="214" font-size="11" class="muted">Back</text>
+  <path d="M595,140 C595,220 120,230 95,142" class="arrow" stroke-dasharray="5 4" marker-end="url(#ah7)"></path><text x="560" y="214" font-size="11" class="muted">Quit to Title / Title</text>
+  <path d="M670,100 C760,60 760,150 672,122" class="arrow" marker-end="url(#ah7)"></path><text x="700" y="80" font-size="11" class="muted">Restart / Retry</text>
+</svg>
+</div>
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li>Game dibuka di title; semua tombol bisa dipilih dengan mouse, panah + Enter, dan gamepad.</li>
+    <li>Esc saat run: menu pause muncul, dunia berhenti; Options → geser volume SFX, matikan screen shake, kembali, bom tidak lagi menggetarkan layar.</li>
+    <li>Mati: layar FALLEN dengan statistik; <kbd>R</kbd> = retry; setiap pindah scene memudar.</li>
+    <li>Ubah ukuran jendela menjadi sangat lebar atau tinggi: panel tetap di tengah, HUD di sudut.</li>
+  </ul>
+</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>Font buram.</b> Ukuran bukan kelipatan 12, atau filter canvas tidak nearest.</li>
+    <li><b>Tombol tidak bisa dipilih dengan keyboard.</b> Tidak ada yang memanggil <code>grab_focus()</code> saat layar dibuka, atau tetangga fokus salah. LevelUpScreen menetapkan <code>focus_neighbor_*</code> eksplisit karena kartu lebar "mencuri" navigasi kiri-kanan.</li>
+    <li><b>Scene baru langsung beku.</b> Pindah scene dari keadaan pause tanpa <code>get_tree().paused = false</code>.</li>
+    <li><b>Autoload belum siap.</b> Settings membaca SaveData di <code>_ready</code>; jika SaveData terdaftar di bawah Settings, datanya masih kosong.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Buat type variation <code>WarningLabel</code> (Label, oranye, ukuran 24) di tema dan pakai untuk teks "Boss incoming" sementara.</li>
+    <li>Tambahkan opsi "Tampilkan FPS" ke OptionsPanel dan Settings, simpan seperti opsi lain.</li>
+    <li>Ganti durasi <code>FADE_OUT</code> SceneFader ke 1 detik dan rasakan kenapa transisi pendek lebih baik untuk tombol Retry.</li>
+  </ol>
+</div>

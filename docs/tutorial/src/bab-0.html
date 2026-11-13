@@ -1,0 +1,109 @@
+<!-- title: Bab 0 · Persiapan | desc: Install Godot 4.7, buat proyek kosong, atur folder, Input Map, window, filter nearest, Python dan Pillow untuk generator sprite. -->
+<span class="eyebrow">Bab 0</span>
+<h1>Persiapan</h1>
+<p class="lede">Sebelum menulis kode game, siapkan proyek yang benar: struktur folder, pengaturan window, peta input, dan alat pembuat sprite. Kesalahan di sini (mis. filter tekstur) baru terasa jauh di belakang, jadi kerjakan dengan teliti.</p>
+
+<div class="goal"><span class="tag">Tujuan</span>Proyek Godot kosong bernama Knellbound yang bisa dijalankan, dengan folder, Input Map, dan pengaturan render yang sama dengan repo, plus <code>tools/gen_sprites.py</code> yang bisa menulis PNG ke <code>art/</code>.</div>
+
+<h2 id="install">Install Godot 4.7 dan Python</h2>
+<ol class="steps">
+  <li>Unduh <b>Godot 4.7.x (Standard, bukan .NET)</b> dari <a href="https://godotengine.org/download" target="_blank" rel="noopener">godotengine.org/download</a>. Proyek ini memakai GDScript saja. Di Windows, file <code>Godot_v4.7.2-stable_win64.exe</code> bisa langsung dijalankan; versi <code>_console.exe</code> berguna karena membuka jendela terminal yang menampilkan <code>print()</code> dan error.</li>
+  <li>Install <b>Python 3.10+</b> dari <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">python.org</a>, lalu Pillow (pustaka gambar) lewat terminal: <code>pip install pillow</code>. Hanya generator sprite yang butuh Pillow; <code>tools/gen_audio.py</code> cukup pustaka standar.</li>
+  <li>Install <b>git</b>. Panduan ini sering meminta kamu membandingkan kode dengan commit fase.</li>
+</ol>
+
+<h2 id="proyek-baru">Membuat proyek kosong</h2>
+<ol class="steps">
+  <li>Buka Godot. Di Project Manager klik <span class="menu-path">+ Create</span>.</li>
+  <li>Project Name: <code>Knellbound</code>. Pilih folder kosong. Renderer: <b>Forward+</b> (proyek memakai shader spatial unshaded dan glow; Forward+ adalah renderer desktop default). Version control: Git.</li>
+  <li>Klik <span class="menu-path">Create &amp; Edit</span>. Godot membuat <code>project.godot</code>, <code>icon.svg</code>, dan folder tersembunyi <code>.godot/</code> (cache impor, jangan di-commit).</li>
+</ol>
+<div class="callout"><span class="tag">Konsep · project.godot</span>Semua yang kamu atur di <span class="menu-path">Project → Project Settings</span> disimpan sebagai teks di <code>project.godot</code>. Itu sebabnya repo bisa menunjukkan pengaturan persisnya, dan diff git memperlihatkan kapan sebuah pengaturan berubah. Mengeditnya dengan tangan boleh, tapi lebih aman lewat editor.</div>
+
+<h2 id="folder">Struktur folder</h2>
+<p>Buat folder berikut di panel FileSystem (klik kanan <code>res://</code> → <span class="menu-path">Create New → Folder</span>). Tidak semua langsung terisi; yang penting kamu tahu di mana tiap jenis file tinggal.</p>
+<div class="tree">res://
+├─ art/          sprites/ tiles/ icons/ ui/   <span class="t-type">← ditulis oleh tools/gen_sprites.py</span>
+├─ audio/        sfx/ bgm/                    <span class="t-type">← ditulis oleh tools/gen_audio.py (Fase 8)</span>
+├─ autoload/     singleton global (Fase 7–8)
+├─ characters/   character_data.gd
+├─ core/         game.gd, spatial_hash.gd, camera_rig.gd, stats.gd, …
+├─ data/         <span class="t-script">semua konten .tres</span>: characters/ enemies/ weapons/ passives/ waves/ …
+├─ enemies/      enemy_swarm.gd, spawn_director.gd, …
+├─ fx/  pickups/  passives/  meta/  world/
+├─ player/       player.gd, player.tscn
+├─ scenes/       main.tscn (run), nanti title.tscn, character_select.tscn, shop.tscn
+├─ shaders/      sprite_billboard.gdshader, blob_shadow.gdshader, aura.gdshader, …
+├─ tools/        gen_sprites.py, gen_audio.py, <span class="t-new">.gdignore</span>
+├─ ui/           hud, layar level up, tema
+└─ weapons/      weapon.gd, projectile_field.gd, aura/ knives/ orbit/ vial/ cross/</div>
+<p>Aturannya: <b>skrip dikelompokkan menurut fitur</b> (enemies/, weapons/), sedangkan <b>data konten</b> (.tres) dikumpulkan di <code>data/</code>. Desainer bisa menyeimbangkan game hanya dengan membuka <code>data/</code> di Inspector.</p>
+<div class="callout"><span class="tag">Konsep · .gdignore</span>File kosong bernama <code>.gdignore</code> membuat Godot mengabaikan folder itu: tidak diimpor, tidak muncul di FileSystem. Folder <code>tools/</code> berisi skrip Python, jadi diberi <code>.gdignore</code>. Panduan ini sendiri (<code>docs/tutorial/</code>) juga punya <code>.gdignore</code> supaya gambar WebP-nya tidak diimpor sebagai tekstur.</div>
+
+<h2 id="pengaturan">Pengaturan proyek</h2>
+<p>Buka <span class="menu-path">Project → Project Settings</span>. Aktifkan <b>Advanced Settings</b> (toggle kanan atas) supaya semua opsi tampil.</p>
+<h3 id="window">Window dan stretch</h3>
+<ol class="steps">
+  <li><span class="menu-path">Display → Window → Size</span>: Viewport Width <code>1280</code>, Height <code>720</code>.</li>
+  <li><span class="menu-path">Display → Window → Stretch</span>: Mode <code>canvas_items</code>, Aspect <code>expand</code>.</li>
+</ol>
+<p><code>canvas_items</code> berarti UI dirancang di 1280×720 lalu diskalakan ke ukuran jendela sebenarnya; <code>expand</code> berarti layar yang lebih lebar menampilkan area lebih banyak, bukan bilah hitam. Dunia 3D tidak terpengaruh stretch karena ukurannya diatur oleh kamera orthographic (Bab 1).</p>
+<h3 id="filter">Filter tekstur nearest</h3>
+<p><span class="menu-path">Rendering → Textures → Canvas Textures → Default Texture Filter</span> = <code>Nearest</code>. Tanpa ini, ikon UI pixel art jadi buram karena diinterpolasi linear. Pengaturan ini hanya berlaku untuk node 2D/UI. Di 3D, filter diatur per material: <code>Sprite3D.texture_filter = Nearest</code> dan di shader <code>uniform sampler2D sheet : filter_nearest</code>. Kamu akan melihat keduanya di Bab 1.</p>
+<div class="code" data-src="project.godot" data-from="^\[display\]" data-to="^\[editor_plugins\]|^\[gui\]"></div><!--/code-->
+<div class="code" data-src="project.godot" data-from="^\[rendering\]"></div><!--/code-->
+
+<h3 id="input-map">Input Map</h3>
+<p>Game tidak pernah membaca tombol keyboard secara langsung. Ia membaca <b>aksi</b> bernama, dan Input Map memetakan tombol, stik, dan d-pad ke aksi itu. Pemain dengan gamepad dan keyboard jalan dengan kode yang sama.</p>
+<ol class="steps">
+  <li>Buka tab <span class="menu-path">Input Map</span>. Ketik <code>move_left</code> di kolom Add New Action, tekan Add.</li>
+  <li>Klik ikon <b>+</b> di baris aksi, tekan tombol <kbd>A</kbd>. Ulangi untuk <kbd>←</kbd>, lalu tambahkan <i>Joypad Axis 0 −</i> (stik kiri ke kiri) dan <i>Joypad Button 13</i> (d-pad kiri).</li>
+  <li>Ulangi untuk <code>move_right</code> (<kbd>D</kbd>, <kbd>→</kbd>, Axis 0 +, Button 14), <code>move_up</code> (<kbd>W</kbd>, <kbd>↑</kbd>, Axis 1 −, Button 11), <code>move_down</code> (<kbd>S</kbd>, <kbd>↓</kbd>, Axis 1 +, Button 12). Set <b>Deadzone</b> keempatnya ke <code>0.2</code>.</li>
+  <li>Tambahkan <code>pause</code> (<kbd>Esc</kbd>, <kbd>P</kbd>, Joypad Start) dan <code>restart</code> (<kbd>R</kbd>, Joypad Back/Select).</li>
+  <li>Aktifkan <b>Show Built-in Actions</b>, cari <code>ui_accept</code>, tambahkan <i>Joypad Button 0</i> (A). Untuk <code>ui_cancel</code> tambahkan <i>Joypad Button 1</i> (B). Default Godot tidak punya keduanya; Fase 2 dan 7 membutuhkannya.</li>
+</ol>
+<p>Saat membuat aksi, pilih <b>Physical Keycode</b> untuk WASD. Dengan physical keycode, posisi tombol yang dihitung, jadi pemain dengan layout AZERTY tetap memakai tombol di posisi W-A-S-D. Di <code>project.godot</code> ini terlihat sebagai <code>"physical_keycode":65</code> (A).</p>
+<p>Membacanya di kode cukup satu baris, dari <code>player/player.gd</code>:</p>
+<div class="code" data-src="player/player.gd" data-from="func tick\(dt: float\)" data-to="position = Vector3"></div><!--/code-->
+<p><code>Input.get_vector</code> mengembalikan <code>Vector2</code> dengan panjang maksimal 1 dan sudah menerapkan deadzone, jadi gerak diagonal tidak lebih cepat dari gerak lurus.</p>
+
+<h3 id="lain">Pengaturan lain di repo</h3>
+<ul>
+  <li><span class="menu-path">Physics → 3D → Physics Engine</span> = Jolt Physics (default baru Godot). Proyek ini tidak memakai fisika sama sekali; tabrakan dihitung sendiri (Bab 1).</li>
+  <li><code>rendering_device/driver.windows="d3d12"</code>: driver Direct3D 12 di Windows. Tidak wajib; Vulkan juga jalan.</li>
+  <li><span class="menu-path">GUI → Theme → Custom</span> diisi <code>res://ui/theme/game_theme.tres</code> di Fase 7.</li>
+</ul>
+
+<h2 id="git">Git untuk proyek Godot</h2>
+<p>Tiga file kecil di root repo menjaga riwayat tetap bersih:</p>
+<div class="code" data-src=".gitignore" data-lines="1-6"></div><!--/code-->
+<div class="code" data-src=".gitattributes" data-lines="1-2"></div><!--/code-->
+<p><code>.godot/</code> adalah cache yang dibangun ulang otomatis. File <code>.import</code> di samping tiap PNG <b>di-commit</b>: isinya pengaturan impor (mis. tanpa mipmap, lossless), dan tanpa itu orang lain mendapat pengaturan default. <code>eol=lf</code> mencegah diff penuh karena perbedaan akhir baris Windows/Linux.</p>
+
+<h2 id="generator">Generator sprite: <code>tools/gen_sprites.py</code></h2>
+<p>Semua art di Knellbound dibuat oleh satu skrip Python. Setiap sprite ditulis sebagai teks ASCII: satu karakter = satu warna palet. Skrip menambahkan bayangan atas/bawah dan outline gelap 1 piksel secara otomatis, jadi semua sprite punya gaya yang sama.</p>
+<div class="code" data-src="tools/gen_sprites.py" data-from="^P_TOP = \[" data-to="^def player_frames"></div><!--/code-->
+<p>Fungsi <code>render()</code> mengubah baris ASCII menjadi gambar. Perhatikan dua aturan: huruf besar diberi bayangan otomatis (lebih terang di tepi atas/kiri, lebih gelap di tepi bawah), dan piksel kosong yang bersebelahan dengan piksel berwarna menjadi <code>OUTLINE</code>.</p>
+<div class="code" data-src="tools/gen_sprites.py" data-from="^def render\(" data-to="^def sheet\(" data-hl="120-127"></div><!--/code-->
+<p>Warna <code>OUTLINE = (24, 16, 30)</code> sengaja unik. Shader elite di Fase 5 mengenali piksel outline dengan membandingkan warna ini, lalu membuatnya menyala merah. Jadi skrip art dan shader punya "kontrak" lewat satu konstanta warna.</p>
+<ol class="steps">
+  <li>Salin <code>tools/gen_sprites.py</code> dari repo (atau mulai dari versi Fase 1: <code>git show 3f048ff:tools/gen_sprites.py</code>, 438 baris; versi akhir 2720 baris).</li>
+  <li>Buat <code>tools/.gdignore</code> kosong.</li>
+  <li>Dari root proyek jalankan <code>python tools/gen_sprites.py</code>. Kembali ke Godot: editor mengimpor PNG baru otomatis.</li>
+</ol>
+<div class="checkpoint"><span class="tag">Checkpoint</span>Di FileSystem muncul <code>art/sprites/player_hunter.png</code> (4 frame jalan, sel 18×18) dan <code>art/sprites/enemies.png</code>. Klik dua kali: gambarnya kecil dan tajam. Kalau buram di preview, itu hanya preview; yang penting filter di material nanti.</div>
+
+<h3 id="ukuran-sel">Kenapa sel 18×18?</h3>
+<p>Art digambar 16×16 piksel, ditambah 1 piksel outline di setiap sisi = 18. Skala dunia: <b>16 piksel = 1 unit dunia</b>, jadi satu sel sprite di dunia berukuran <code>18 / 16 = 1.125</code> unit. Konstanta itu muncul di kode sebagai <code>CELL_WORLD := 18.0 / 16.0</code>. Sprite besar (boss) memakai sel 34 (32 + outline).</p>
+
+<h2 id="plugin">Plugin godot_ai (opsional)</h2>
+<p>Repo ini dibangun dengan bantuan plugin <code>addons/godot_ai</code>, jembatan MCP yang memungkinkan asisten AI menjalankan game, mengambil screenshot, dan mengirim input. Plugin ini <b>bukan bagian dari game</b>: tidak ada kode game yang memanggilnya, dan di HEAD folder <code>addons/</code> ada di <code>.gitignore</code>. Kamu bisa mengabaikannya sepenuhnya. Kalau project.godot-mu berisi baris <code>_mcp_game_helper=…</code> di <code>[autoload]</code> tapi foldernya tidak ada, hapus baris itu dan baris <code>[editor_plugins]</code> supaya tidak muncul error.</p>
+
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>Sprite buram atau ada garis di tepi frame.</b> Filter linear. Cek <code>texture_filter</code> di Sprite3D dan <code>filter_nearest</code> di shader. Garis tipis di tepi biasanya berasal dari mipmap; matikan mipmap di tab Import untuk sheet sprite.</li>
+    <li><b>Aksi tidak bereaksi.</b> Nama aksi di kode harus sama persis (<code>&amp;"move_left"</code>). Salah ketik tidak menimbulkan error kompilasi, hanya peringatan di Output saat dijalankan.</li>
+    <li><b>Python tidak menemukan PIL.</b> <code>pip</code> menginstall ke Python lain. Pakai <code>python -m pip install pillow</code>.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>Tambahkan aksi <code>dash</code> (<kbd>Space</kbd>, Joypad Button 2) di Input Map, lalu buka <code>project.godot</code> di editor teks dan temukan bentuk teksnya. Hapus lagi sesudahnya; game tidak memakainya.</div>

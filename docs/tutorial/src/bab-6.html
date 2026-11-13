@@ -1,0 +1,69 @@
+<!-- title: Bab 6 · Pickup, Pecahan dan Game Feel | desc: Fase 6 Knellbound: pickup sebagai Resource, DropTable dengan LUCK, objek pecahan sebagai slot swarm, angka damage satu instance per angka, efek kill, screen shake, hit-stop. -->
+<span class="eyebrow">Bab 6 · Fase 6 · commit 464f917</span>
+<h1>Pickup, Pecahan dan Game Feel</h1>
+<p class="lede">Game sudah bisa dimainkan; Fase 6 membuatnya terasa enak. Angka damage, ledakan darah, getaran layar, beku sesaat saat bom meledak. Juga makanan, magnet, bom, koin, dan lentera yang bisa dihancurkan, semuanya sebagai data.</p>
+<div class="goal"><span class="tag">Tujuan</span>Lentera, anglo, peti kayu, dan salib nisan muncul di sekitar pemain dan bisa dihancurkan oleh senjata apa pun. Musuh kadang menjatuhkan roti, ayam panggang, magnet, bom, atau koin. Setiap hit memunculkan angka; crit berwarna kuning menyala. Bom menggetarkan layar dan membekukan dunia sesaat.</div>
+<div class="shots">
+  <figure><img src="assets/img/p6_pickups.webp" alt="Fase 6: lentera, anglo, peti kayu, salib nisan di depan pemain dan deretan pickup roti, ayam, magnet, bom, koin" width="1280" height="720" loading="lazy"><figcaption>Fase 6: objek pecahan (debug <kbd>B</kbd>) dan semua jenis pickup (debug <kbd>4</kbd>–<kbd>9</kbd>).</figcaption></figure>
+  <figure><img src="assets/img/p6_numbers.webp" alt="Fase 6: kolam emas, salib, pisau, angka damage di atas musuh" width="1280" height="720" loading="lazy"><figcaption>Angka damage dan efek kill di tengah pertarungan.</figcaption></figure>
+</div>
+
+<h2 id="pickup-data">Pickup sebagai data</h2>
+<p>Fase 4 punya satu jenis pickup (peti) yang ditandai dengan angka. Fase 6 menjadikannya Resource:</p>
+<div class="code" data-src="pickups/pickup_data.gd"></div><!--/code-->
+<p>Ada 7 file di <code>data/pickups/</code>. Efeknya diterapkan di satu tempat, <code>Game._on_pickup</code>, karena efek menyentuh banyak sistem (pemain, gem, swarm, kamera):</p>
+<div class="code" data-src="core/game.gd" data-from="^func _on_pickup" data-to="^## Run coins, scaled by GREED"></div><!--/code-->
+<p><code>PickupField.tick()</code> tidak menerapkan apa pun: ia mengembalikan <b>indeks jenis</b> yang terkumpul dan posisinya. Alasan yang sama seperti layar = view: sistem dunia tidak memutuskan aturan game.</p>
+
+<h3 id="drop-table">DropTable dan LUCK</h3>
+<div class="code" data-src="pickups/drop_table.gd"></div><!--/code-->
+<p>Dua tahap: peluang ada drop sama sekali (<code>chance × LUCK</code>, untuk musuh biasa 0,4%), lalu undian berbobot. Item dengan <code>luck_weighted</code> (mis. kantong koin) bobotnya dikali LUCK, sehingga relik Lucky Horseshoe membuat barang langka lebih sering, bukan hanya drop lebih banyak. Undian berbobot standar: jumlahkan bobot, ambil angka acak di <code>[0, total)</code>, kurangi bobot satu per satu sampai negatif.</p>
+
+<h2 id="breakable">Objek pecahan: musuh yang tidak bergerak</h2>
+<p>Lentera yang bisa dipecah harus kena aura, pisau, manik, kolam, dan bom. Kalau dibuat sebagai sistem terpisah, setiap senjata butuh kode tambahan. Trik Fase 6: <b>objek pecahan adalah slot EnemySwarm</b> dengan perilaku <code>STATIC</code> dan flag <code>PROP</code>.</p>
+<div class="code" data-src="world/breakable_data.gd"></div><!--/code-->
+<p>Semua jalur hit sudah memakai <code>query_circle</code> + <code>damage_enemy</code>, jadi pecahan langsung ikut kena, dengan hit flash dan angka damage gratis. Yang perlu dikecualikan hanya sedikit: separasi melewati <code>PROP</code> (tidak terdorong), <code>collide_player</code> melewatinya (tidak menyakiti), dan <code>_on_enemy_died</code> tidak menghitung kill/XP tapi memutar efek puing dan menjatuhkan pickup dari <code>drops</code>. <code>BreakableSpawner</code> menjaga beberapa pecahan ada di cincin 9–15 unit, kebanyakan di depan arah jalan pemain, dan membuang yang tertinggal jauh.</p>
+
+<h2 id="angka-damage">Angka damage: satu instance per angka</h2>
+<p>"1234" butuh empat digit. Cara naif: satu instance per digit. Cara proyek ini: <b>satu quad per angka</b>, lebarnya = jumlah digit, dan <b>fragment shader memilih digit</b> dari nilai di <code>INSTANCE_CUSTOM.x</code>.</p>
+<div class="code" data-src="shaders/damage_number.gdshader" data-from="^void fragment"></div><!--/code-->
+<p>Untuk piksel di posisi <code>x = UV.x × n</code>, digit ke-<code>k = floor(x)</code> dari kiri adalah <code>floor(nilai / 10^(n-1-k)) mod 10</code>. Contoh nilai 347, n = 3: k=0 → 347/100 = 3; k=1 → 34 mod 10 = 4; k=2 → 7. Lalu tekstur strip 0–9 disampel di <code>(d + fract(x)) / 10</code>. <code>depth_test_disabled</code> membuat angka selalu di atas dunia.</p>
+<p>Di 1000 musuh, aura bisa menghasilkan ratusan hit per pulsa. Dua aturan menjaga jumlah angka:</p>
+<div class="code" data-src="fx/damage_number_field.gd" data-from="^func add" data-to="^func tick"></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">merge</b>Hit dekat (&lt; 0,7 unit) angka baru (&lt; 0,15 dtk) yang jenisnya sama digabung: nilainya dijumlah dan umurnya di-reset sehingga angka "pop" lagi. Hanya 8 angka terbaru yang dicek (<code>MERGE_SCAN</code>), jadi biayanya tetap kecil.</li>
+  <li><b class="ln">soft_cap</b>Di atas 220 angka hidup, hit NORMAL dibuang. Crit, heal, dan damage ke pemain tetap tampil karena itu informasi yang lebih penting.</li>
+</ul>
+
+<h2 id="efek">Efek sekali main</h2>
+<p><code>EffectField</code> memutar animasi 6 frame (asap, darah, ektoplasma, ledakan, kilau, heal, puing kayu/besi/batu/tulang) memakai shader billboard yang sama dengan <code>fps = 0</code>: dalam mode itu <code>INSTANCE_CUSTOM.x</code> berarti <b>indeks frame</b>, dihitung CPU dari umur efek. Baris efek kill dipilih dari <code>EnemyData.death_effect</code>; ukurannya ×2 untuk sprite besar, ×1,6 elite, ×3 boss + ledakan.</p>
+
+<h2 id="game-feel">Shake dan hit-stop</h2>
+<div class="callout"><span class="tag">Konsep · game feel</span><p><b>Screen shake</b> mengomunikasikan dampak. Masalahnya, shake yang terlalu sering melelahkan. Teknik <b>trauma</b>: setiap kejadian menambah nilai trauma 0..1 yang meluruh linear, dan offset kamera = trauma² × maks. Kuadrat membuat pukulan kecil nyaris tak terasa dan pukulan besar terasa jelas. <b>Hit-stop</b> membekukan simulasi beberapa puluh milidetik pada momen besar; otak membaca jeda itu sebagai "berat".</p></div>
+<div class="code" data-src="core/camera_rig.gd" data-from="^func tick" data-to="^## Ground rect"></div><!--/code-->
+<div class="code" data-src="core/game.gd" data-from="^func _process" data-to="var dt := minf" data-hl="150-153"></div><!--/code-->
+<p>Hit-stop hanya tiga baris karena Game memegang urutan: selama <code>_hit_stop &gt; 0</code>, hanya kamera yang di-tick, lalu <code>return</code>. Tidak ada <code>Engine.time_scale</code> yang ikut memperlambat UI atau tween. Dipakai untuk bom (0,08 dtk), boss mati (0,16 dtk), dan crit ke boss (0,035 dtk, maksimal sekali per 0,6 dtk supaya tidak tersendat terus).</p>
+<div class="demo" data-demo="feel"></div>
+<p>Knockback juga mendapat batas di fase ini: <code>knock = (knock + kb × (1 − resist)).limit_length(max_knock)</code>. Tanpa batas, musuh yang kena aura, salib, dan pisau di frame yang sama bisa terlempar ke luar layar.</p>
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li><kbd>B</kbd> menaruh satu dari tiap objek pecahan di depan pemain. Pecahkan dengan aura: ada efek puing + asap, lalu satu pickup jatuh.</li>
+    <li><kbd>4</kbd>–<kbd>9</kbd> menjatuhkan tiap pickup. Ambil bom: semua musuh di layar kena, layar bergetar keras, dunia membeku sekejap, proyektil musuh hilang.</li>
+    <li>Angka damage putih; crit kuning lebih besar dan berpendar; heal hijau di atas pemain; damage ke pemain merah.</li>
+  </ul>
+</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>Angka menampilkan digit salah (mis. 299 untuk 300).</b> Presisi float pada <code>pow()</code>. Shader menambah <code>+0.001</code> sebelum <code>floor</code>.</li>
+    <li><b>Lentera terdorong musuh atau melukai pemain.</b> Lupa mengecualikan <code>PROP</code> di separasi atau <code>collide_player</code>.</li>
+    <li><b>Hit-stop membuat game terasa macet.</b> Durasi terlalu panjang atau terlalu sering. Batasi dengan cooldown seperti <code>boss_crit_cooldown</code>.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Buat pickup "Holy Candle" yang memberi heal 10% (efek HEAL, <code>amount = 0.1</code>) dan masukkan ke <code>enemy_drops.tres</code>. Tidak perlu kode; tapi kamu perlu baris sprite baru di <code>pickups.png</code> atau memakai baris yang ada.</li>
+    <li>Ubah <code>bomb_hit_stop</code> di Inspector Main ke 0,3 lalu ke 0. Mana yang terasa paling "berat" tanpa mengganggu?</li>
+    <li>Ubah <code>soft_cap</code> DamageNumberField ke 20 dan main di menit 15. Apakah informasi penting hilang?</li>
+  </ol>
+</div>

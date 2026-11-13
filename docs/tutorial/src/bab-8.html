@@ -1,0 +1,96 @@
+<!-- title: Bab 8 · Save, Toko, Hunter dan Audio | desc: Fase 8 Knellbound: SaveData autoload dengan save.json versi dan migrasi, tulis atomik tmp/bak, toko Reliquary, lima hunter dengan syarat buka, Audio autoload dengan pool 24 voice dan bus. -->
+<span class="eyebrow">Bab 8 · Fase 8 · commit 3b55d3c</span>
+<h1>Save, Toko, Hunter dan Audio</h1>
+<p class="lede">Fase terakhir membuat game punya ingatan dan suara. Koin dari setiap run disimpan, dibelanjakan di toko permanen, membuka hunter baru, dan semua itu tahan crash. Ribuan kematian per menit menghasilkan suara yang tetap enak didengar.</p>
+<div class="goal"><span class="tag">Tujuan</span>Koin terkumpul saat run dan masuk "bank" saat run berakhir. Reliquary menjual 18 upgrade permanen. Lima hunter dengan senjata awal berbeda, sebagian terkunci. Semua tersimpan di <code>user://save.json</code> yang selalu bisa dibaca walau game mati saat menulis. Efek suara dan musik dengan batas jumlah voice.</div>
+<div class="shots">
+  <figure><img src="assets/img/p8_shop.webp" alt="Toko Reliquary: grid kartu upgrade dengan harga, panel detail di kanan" width="1280" height="720" loading="lazy"><figcaption>Reliquary (scenes/shop.tscn).</figcaption></figure>
+  <figure><img src="assets/img/p8_select.webp" alt="Layar pilih hunter: Hunter, Sister Maud, Vesna Thorn, Brother Odo, Dame Ysolde terkunci" width="1280" height="720" loading="lazy"><figcaption>Pilih hunter: Dame Ysolde masih terkunci (rekrut 750 koin).</figcaption></figure>
+</div>
+
+<h2 id="user-dir">Di mana file save tinggal: <code>user://</code></h2>
+<div class="callout"><span class="tag">Konsep · res:// vs user://</span><p><code>res://</code> adalah folder proyek: <b>hanya baca</b> setelah game diekspor (isinya dikemas di file .pck). <code>user://</code> adalah folder data pengguna yang bisa ditulis: di Windows <code>%APPDATA%\Godot\app_userdata\Knellbound\</code>, di Linux <code>~/.local/share/godot/app_userdata/Knellbound/</code>, di web IndexedDB browser. Di editor: <span class="menu-path">Project → Open User Data Folder</span>.</p></div>
+
+<h2 id="save-data">SaveData: state permanen + aturan meta</h2>
+<p><code>autoload/save_data.gd</code> memegang semua yang melewati satu run: koin, level upgrade toko, hunter yang terbuka dan terpilih, opsi, dan rekor. Seperti Game di dalam run, SaveData juga <b>pemilik aturan meta</b>: membeli, refund, membuka hunter, membank run. Layar toko dan pilih hunter hanya view.</p>
+<div class="code" data-src="autoload/save_data.gd" data-from="^signal changed" data-to="^func _ready"></div><!--/code-->
+<p>Format JSON memakai <b>id string</b>, bukan indeks: <code>{"upgrades": {"might": 3}}</code>, bukan <code>[3, 0, 0, …]</code>. Urutan upgrade di toko bisa diubah, upgrade baru bisa ditambah, save lama tetap benar.</p>
+
+<h3 id="atomik">Menulis secara atomik</h3>
+<p>Kalau game crash (atau listrik mati) tepat saat <code>save.json</code> sedang ditulis, file bisa tersisa setengah: JSON rusak, semua progres hilang. Solusinya: jangan pernah menulis langsung ke file yang sudah ada.</p>
+<div class="code" data-src="autoload/save_data.gd" data-from="^func save_game" data-to="^## Saves a moment later"></div><!--/code-->
+<div class="demo" data-demo="save"></div>
+<p>Rename di sistem file yang sama bersifat atomik: file target berganti seluruhnya atau tidak sama sekali. Jadi di titik mana pun crash terjadi, minimal satu dari <code>save.json</code> atau <code>save.json.bak</code> berisi JSON utuh. Pemuatan mencoba keduanya:</p>
+<div class="code" data-src="autoload/save_data.gd" data-from="^func load_game" data-to="^func save_game"></div><!--/code-->
+<div class="code" data-src="autoload/save_data.gd" data-from="^func _read" data-to="^func _reset"></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">.corrupt</b>File yang tidak bisa dibaca tidak dihapus; ia disalin ke <code>save.json.corrupt</code> untuk diperiksa, dan game tetap jalan.</li>
+  <li><b class="ln">0x7B</b>Byte pertama harus <code>{</code>. Sampah biner ditolak sebelum dekode UTF-8, yang kalau tidak akan mencetak satu error per byte rusak.</li>
+  <li><b class="ln">queue_save</b>Menggeser slider volume memanggil setter puluhan kali per detik. <code>queue_save()</code> menggabungkannya menjadi satu tulis 0,4 detik kemudian; <code>NOTIFICATION_WM_CLOSE_REQUEST</code> menyimpan yang tertunda saat jendela ditutup.</li>
+</ul>
+
+<h3 id="validasi">Validasi dan migrasi</h3>
+<p>File save adalah input dari luar: bisa diedit pemain, bisa berasal dari versi lama. Setiap field dicek tipenya dan di-clamp; id yang tidak dikenal dibuang.</p>
+<div class="code" data-src="autoload/save_data.gd" data-from="^func _from_dict" data-to="^## A finite number"></div><!--/code-->
+<div class="code" data-src="autoload/save_data.gd" data-from="^## Brings an older save dictionary" data-to="^func _legacy_options"></div><!--/code-->
+<p>Pola migrasi bertahap: setiap versi punya satu langkah <code>if v &lt; N</code>, dijalankan berurutan. Save v1 (Fase 7 menyimpan opsi di <code>settings.cfg</code>) diangkat ke v2 dengan membaca file lama itu. Menambah field cukup default di <code>_reset()</code> + baca di <code>_from_dict()</code>; mengubah bentuk = naikkan <code>VERSION</code> + satu langkah baru.</p>
+
+<h2 id="toko">Reliquary: upgrade permanen sebagai data</h2>
+<div class="code" data-src="meta/meta_upgrade.gd" data-to="^## .\+10% damage. for"></div><!--/code-->
+<p>Harga tumbuh geometris (<code>base_cost × cost_growth^level</code>), dibulatkan ke kelipatan 5 supaya enak dibaca. Refund mengembalikan <code>spent(level)</code>. Saat run mulai, setiap level yang dibeli menerapkan modifier yang sama ke Stats, memakai <code>add_modifier(m, times)</code> dari Bab 2:</p>
+<div class="code" data-src="autoload/save_data.gd" data-from="^func apply_upgrades" data-to="^# -+ runs"></div><!--/code-->
+<p>18 upgrade termasuk dua stat baru: <code>GREED</code> (pengali koin) dan <code>REVIVAL</code> (nyawa tambahan), ditambahkan <b>di akhir</b> <code>Stats.Id</code> sesuai aturan. Daftar upgrade dan hunter disusun di <code>data/meta.tres</code> (<code>MetaCatalog</code>), yang menentukan urutan tampil di layar.</p>
+
+<h3 id="bank">Membank run</h3>
+<div class="code" data-src="autoload/save_data.gd" data-lines="345-362"></div><!--/code-->
+<p>Game memanggil ini tepat sekali per run lewat <code>_end_run()</code> (mati, restart, atau keluar ke title). <code>RunReward</code> yang dikembalikan dibaca layar game over: "+N coins banked", "New longest night!", hunter yang baru terbuka.</p>
+
+<h2 id="hunter">Lima hunter</h2>
+<div class="code" data-src="characters/character_data.gd" data-to="^## .Survive 10:00"></div><!--/code-->
+<p>Hunter (Holy Aura, gratis), Sister Maud (Vesper Beads, gratis), Vesna Thorn (Silverthorn Knives, bertahan 10:00), Brother Odo (Hallowed Vial, 3000 kill total), Dame Ysolde (Pilgrim's Cross, rekrut 750 koin). Sheet jalan tiap hunter dibuat <code>gen_sprites.HUNTER_SHEETS</code>. Layar pilih hunter menampilkan potret berjalan dengan <code>AtlasTexture</code> yang region-nya digeser 8 kali per detik.</p>
+<p>Run memakai hunter terpilih lalu menerapkan toko, dalam urutan ini (bonus karakter dulu, toko di atasnya):</p>
+<div class="code" data-src="core/game.gd" data-from="var picked := SaveData.selected_character" data-to="player.died.connect"></div><!--/code-->
+
+<h2 id="audio">Audio: bus, SoundBank, pool voice</h2>
+<div class="callout"><span class="tag">Konsep · audio bus</span><p>Bus adalah jalur campuran suara. Semua suara efek dikirim ke bus <code>SFX</code>, musik ke <code>BGM</code>, keduanya ke <code>Master</code>. Volume tiga slider di Options = volume tiga bus. Layout bus disimpan di <code>default_bus_layout.tres</code> (atur di panel Audio di bawah editor).</p></div>
+<div class="code" data-src="default_bus_layout.tres"></div><!--/code-->
+<p>Setiap suara adalah <code>SoundDef</code> (Resource) di <code>data/sound_bank.tres</code>: beberapa variasi stream, volume, dan tiga batas.</p>
+<div class="code" data-src="audio/sound_def.gd"></div><!--/code-->
+<p>Masalahnya: 600 kill per detik × suara "kill" = 600 suara per detik bertumpuk. Itu memakan CPU dan terdengar seperti dengung. <code>Audio.play_sfx</code> menerapkan tiga penyaring, dari yang paling murah:</p>
+<div class="code" data-src="autoload/audio.gd" data-from="^func play_sfx" data-to="^## Voices playing right now"></div><!--/code-->
+<ol>
+  <li><b>Cooldown per id</b> (<code>min_interval</code>): satu lookup dictionary. Mayoritas permintaan berhenti di sini.</li>
+  <li><b>Jarak</b>: suara di luar 24 unit dari pemain tidak diputar; di dalamnya diredam linear sampai −10 dB.</li>
+  <li><b>Batas per id dan pool global</b>: 24 <code>AudioStreamPlayer</code> dibuat sekali. Kalau semua sibuk, suara baru mencuri voice <b>tertua</b> dengan prioritas sama atau lebih rendah (UI dan stinger &gt; pickup &gt; hit), kalau tidak ada, dibuang.</li>
+</ol>
+<div class="demo" data-demo="audio"></div>
+<p>Terukur di <code>ARCHITECTURE.md</code>: sekitar 670 kill/s menghasilkan ~3500 permintaan suara, 168 benar-benar diputar, puncak 5 voice. Musik memakai dua player di bus BGM yang di-crossfade linear oleh <code>play_music()</code>. Suara UI dipasang global: Audio menyambung <code>SceneTree.node_added</code> dan memberi setiap BaseButton suara <code>ui_select</code> saat ditekan, tanpa menyentuh satu pun scene UI.</p>
+<p>Suara placeholder dibuat <code>python tools/gen_audio.py</code> (pustaka standar saja, seeded): WAV 16-bit mono 22,05 kHz. Ganti dengan rekaman asli bernama sama, atau arahkan <code>streams</code> SoundDef ke file baru.</p>
+
+<h2 id="urutan-autoload">Urutan autoload</h2>
+<div class="code" data-src="project.godot" data-from="^\[autoload\]" data-to="^\[display\]"></div><!--/code-->
+<p>SaveData harus pertama karena Settings membaca <code>SaveData.options</code> di <code>_ready</code>-nya. Audio sebelum Settings karena Settings menerapkan volume bus. SceneFader terakhir karena ia memulai fade-in scene pertama. (Di riwayat fase, baris <code>_mcp_game_helper</code> plugin godot_ai ada di paling atas; itu bukan bagian dari game.)</p>
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li>Mainkan satu run, kumpulkan koin, mati. Layar FALLEN menulis "+N coins banked". Title menampilkan total koin di kanan atas dan rekor di bawah.</li>
+    <li>Beli Might di Reliquary, mulai run: damage aura lebih besar. Refund All (tekan dua kali) mengembalikan semua koin.</li>
+    <li>Buka folder user data: ada <code>save.json</code> dan <code>save.json.bak</code>. Isi <code>save.json</code> dengan teks sembarang, jalankan game: progres dari .bak muncul, dan ada <code>save.json.corrupt</code>.</li>
+    <li>Dengan <kbd>F1</kbd> beberapa kali, suara kill tetap terdengar sebagai ritme, bukan dengung.</li>
+  </ul>
+</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>Progres hilang setelah ekspor.</b> Menyimpan ke <code>res://</code>. Gunakan <code>user://</code>.</li>
+    <li><b>Save lama crash setelah update.</b> Membaca field dengan <code>d["coins"]</code> tanpa cek; field yang hilang = error. Pakai <code>d.get()</code> + cek tipe.</li>
+    <li><b>Toko "memberi" stat dua kali.</b> <code>apply_upgrades</code> dipanggil di dua tempat, atau setelah restart Stats lama dipakai ulang. Stats dibuat baru per Player.</li>
+    <li><b>Tidak ada suara di web.</b> Browser hanya mengizinkan audio setelah interaksi pengguna; layar title yang meminta klik/tombol menyelesaikannya.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Tambahkan rekor "level tertinggi" ke save: default di <code>_reset()</code>, tulis di <code>_to_dict()</code>, baca dengan validasi di <code>_from_dict()</code>, perbarui di <code>bank_run()</code>. Perlu naik VERSION? Kenapa tidak?</li>
+    <li>Buat upgrade toko baru "Thick Skin" (+1 ARMOR flat, max 3, base_cost 200).</li>
+    <li>Ubah <code>max_concurrent</code> SoundDef <code>kill</code> ke 24 dan <code>min_interval</code> ke 0, lalu dengarkan 1000 musuh mati.</li>
+  </ol>
+</div>

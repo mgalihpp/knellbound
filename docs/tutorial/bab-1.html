@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Bab 1 · Dunia 2.5D dan EnemySwarm</title>
+<meta name="description" content="Fase 1 Knellbound: kamera orthographic miring, sprite billboard sumbu Y, ribuan musuh di packed array + MultiMesh, spatial hash, Holy Aura.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Pixelify+Sans:wght@500;600&display=swap">
+<link rel="stylesheet" href="assets/style.css?v=5213953b">
+<script>try{var t=JSON.parse(localStorage.getItem("kb-theme"));if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="bab-1">
+<header class="topbar">
+<button id="menu-btn" class="icon-btn" type="button" aria-label="Buka daftar bab"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Bab</button>
+<a class="brand" href="index.html">Knellbound <span>dari Nol</span></a>
+<span class="spacer"></span>
+<div class="search-wrap"><input id="search" type="search" placeholder="Cari… (tekan /)" aria-label="Cari di panduan" autocomplete="off"><div id="search-results" hidden></div></div>
+<button id="theme-btn" class="icon-btn" type="button" aria-label="Ganti tema"></button>
+<div class="progress-line"></div>
+</header>
+<div class="layout">
+<nav class="sidebar" id="sidebar" aria-label="Daftar bab"></nav>
+<main>
+<article class="article">
+<span class="eyebrow">Bab 1 · Fase 1 · commit 3f048ff</span>
+<h1>Dunia 2.5D dan EnemySwarm</h1>
+<p class="lede">Bab paling penting. Di sini fondasi seluruh game dipasang: dunia 3D yang dilihat dari kamera miring, sprite pixel yang berdiri menghadap kamera, dan cara menggerakkan serta menggambar ribuan musuh tanpa membuat ribuan node.</p>
+
+<div class="goal"><span class="tag">Tujuan</span>Pemain berjalan di padang rumput tak berujung. Musuh muncul makin banyak dari luar layar, mengejar, saling menjauh supaya tidak bertumpuk, dan didorong oleh Holy Aura yang memberi damage tiap 0,6 detik. Tekan <kbd>F1</kbd>: 500 musuh tambahan, game tetap mulus.</div>
+<div class="shots">
+  <figure><img src="assets/img/p1_start.webp" alt="Fase 1 detik pertama: pemain dengan aura biru di padang rumput, beberapa kelelawar di kejauhan" width="1280" height="720" loading="lazy"><figcaption>Fase 1, detik ke-2.</figcaption></figure>
+  <figure><img src="assets/img/p1_swarm.webp" alt="Fase 1 setelah 250 musuh tambahan: gerombolan ghoul dan kelelawar mengelilingi pemain" width="1280" height="720" loading="lazy"><figcaption>Detik ke-9 setelah <code>spawn_ring(250)</code>.</figcaption></figure>
+</div>
+
+<h2 id="node-scene">Konsep: Node, Scene, dan Resource</h2>
+<div class="callout"><span class="tag">Konsep · Godot</span>
+  <p><b>Node</b> adalah satuan terkecil di Godot: sesuatu yang punya nama, posisi di pohon, dan (opsional) skrip. <b>Scene</b> adalah pohon node yang disimpan ke file <code>.tscn</code> dan bisa dipakai berulang (di-<i>instance</i>), seperti <code>player.tscn</code> yang dimasukkan ke <code>main.tscn</code>. <b>Resource</b> adalah data tanpa posisi di pohon: tekstur, mesh, material, atau kelas data milikmu sendiri seperti <code>EnemyData</code>. Resource disimpan sebagai <code>.tres</code> dan dibagi oleh siapa pun yang memuatnya.</p>
+  <p>Aturan praktis di proyek ini: <b>sesuatu yang perlu ada di dunia dan jumlahnya sedikit</b> (pemain, kamera, HUD) = node. <b>Sesuatu yang jumlahnya ribuan</b> (musuh, proyektil, gem) = baris data di array, digambar oleh satu node. <b>Sesuatu yang mendeskripsikan</b> (statistik ghoul, statistik senjata) = Resource.</p>
+</div>
+
+<h2 id="gameplay-2d">Gameplay di 2D, tampilan di 3D</h2>
+<p>Knellbound terlihat 3D, tapi semua logika berjalan di bidang datar. Posisi pemain adalah <code>pos2: Vector2</code>; komponen <code>x</code> = sumbu X dunia, komponen <code>y</code> = sumbu Z dunia. Node 3D hanya menyalin nilai itu untuk digambar:</p>
+<div class="code" data-src="player/player.gd" data-from="func tick\(dt: float\)" data-to="var regen"><div class="file"><span><b>player/player.gd</b> · baris 105–108</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">105</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(dt: <span class="tk-ty">float</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">106</span>    <span class="tk-kw">var</span> input := <span class="tk-ty">Input</span>.<span class="tk-fn">get_vector</span>(<span class="tk-ann">&amp;&quot;move_left&quot;</span>, <span class="tk-ann">&amp;&quot;move_right&quot;</span>, <span class="tk-ann">&amp;&quot;move_up&quot;</span>, <span class="tk-ann">&amp;&quot;move_down&quot;</span>)
+<span class="ln">107</span>    pos2 += input * stats.<span class="tk-fn">value</span>(Stats.Id.MOVE_SPEED) * dt
+<span class="ln">108</span>    position = <span class="tk-ty">Vector3</span>(pos2.x, <span class="tk-num">0.0</span>, pos2.y)</code></pre></div><!--/code-->
+<p>Keuntungannya besar: jarak, tabrakan, dan arah semua memakai <code>Vector2</code> (dua angka, bukan tiga), tidak perlu fisika 3D, dan tidak pernah ada musuh yang "jatuh" atau tersangkut di lantai. Ketinggian (proyektil melayang, vial yang dilempar melengkung) hanya ditambahkan saat menulis buffer gambar.</p>
+
+<h2 id="main-scene">Langkah 1: scene <code>main.tscn</code></h2>
+<ol class="steps">
+  <li><span class="menu-path">Scene → New Scene</span>, pilih <b>3D Scene</b>. Rename root jadi <code>Main</code>. Simpan sebagai <code>scenes/main.tscn</code>. Di <span class="menu-path">Project Settings → Application → Run → Main Scene</span> pilih file ini (Fase 7 menggantinya dengan title).</li>
+  <li>Tambah child <b>WorldEnvironment</b>. Di Inspector buat <i>New Environment</i>: Background Mode <code>Custom Color</code> gelap, Ambient Light dari warna, Tonemap <code>Filmic</code>, aktifkan <b>Glow</b>. Glow penting nanti: warna di atas 1,0 (aura, proyektil, outline elite) akan berpendar.</li>
+  <li>Tambah <b>DirectionalLight3D</b> bernama <code>Sun</code>. Sprite memakai shader <code>unshaded</code>, jadi lampu hanya memengaruhi tanah.</li>
+  <li>Tambah <b>MeshInstance3D</b> bernama <code>Ground</code>, Mesh = <i>PlaneMesh</i> 160×160. Material: <i>StandardMaterial3D</i>, Albedo Texture = <code>art/tiles/grass.png</code>, UV1 Triplanar + World Triplanar aktif, UV1 scale 0,125, Texture Filter <code>Nearest</code>.</li>
+</ol>
+<div class="code" data-src="scenes/main.tscn" data-from="StandardMaterial3D_ground.\]" data-to="^\[node name=.Main."><div class="file"><span><b>scenes/main.tscn</b> · baris 63–73</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">63</span>[sub_resource type=<span class="tk-str">&quot;StandardMaterial3D&quot;</span> id=<span class="tk-str">&quot;StandardMaterial3D_ground&quot;</span>]
+<span class="ln">64</span>albedo_texture = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;11_grass&quot;</span>)
+<span class="ln">65</span>roughness = <span class="tk-num">1.0</span>
+<span class="ln">66</span>uv1_scale = <span class="tk-ty">Vector3</span>(<span class="tk-num">0.125</span>, <span class="tk-num">0.125</span>, <span class="tk-num">0.125</span>)
+<span class="ln">67</span>uv1_triplanar = <span class="tk-kw">true</span>
+<span class="ln">68</span>uv1_world_triplanar = <span class="tk-kw">true</span>
+<span class="ln">69</span>texture_filter = <span class="tk-num">0</span>
+<span class="ln">70</span>
+<span class="ln">71</span>[sub_resource type=<span class="tk-str">&quot;PlaneMesh&quot;</span> id=<span class="tk-str">&quot;PlaneMesh_ground&quot;</span>]
+<span class="ln">72</span>material = <span class="tk-fn">SubResource</span>(<span class="tk-str">&quot;StandardMaterial3D_ground&quot;</span>)
+<span class="ln">73</span>size = <span class="tk-ty">Vector2</span>(<span class="tk-num">160</span>, <span class="tk-num">160</span>)</code></pre></div><!--/code-->
+<p>Trik tanah tak berujung: plane 160×160 digeser mengikuti pemain tiap frame (<code>ground.position = Vector3(player.pos2.x, 0, player.pos2.y)</code> di <code>Game._process</code>). Karena UV-nya <b>world triplanar</b>, tekstur dihitung dari posisi dunia, bukan dari posisi mesh. Mesh bergerak, rumputnya diam. Pemain tidak pernah melihat tepi.</p>
+
+<h2 id="kamera">Langkah 2: kamera orthographic miring</h2>
+<div class="callout"><span class="tag">Konsep · Camera3D</span><b>Perspective</b> membuat benda jauh tampak kecil. <b>Orthographic</b> tidak: semua benda tampak sebesar ukuran aslinya, berapa pun jaraknya, seperti gambar teknik. Untuk pixel art, ortho berarti satu piksel sprite selalu menjadi jumlah piksel layar yang sama di seluruh layar. Properti <code>size</code> pada kamera ortho = tinggi area yang terlihat, dalam unit dunia.</div>
+<p>Buat node <b>Node3D</b> bernama <code>CameraRig</code>, beri child <b>Camera3D</b>, lalu tempel skrip <code>core/camera_rig.gd</code>. Rig berada di tanah mengikuti pemain; kameranya duduk di ujung "lengan" yang miring.</p>
+<div class="code" data-src="core/camera_rig.gd" data-from="^@export_range\(20.0, 80.0\)" data-to="^func snap_to"><div class="file"><span><b>core/camera_rig.gd</b> · baris 6–36</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 6</span><span class="tk-ann">@export_range</span>(<span class="tk-num">20.0</span>, <span class="tk-num">80.0</span>) <span class="tk-kw">var</span> pitch_degrees := <span class="tk-num">50.0</span>
+<span class="ln"> 7</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> distance := <span class="tk-num">30.0</span>
+<span class="ln"> 8</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> use_orthographic := <span class="tk-kw">true</span>
+<span class="ln"> 9</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> ortho_size := <span class="tk-num">13.0</span>
+<span class="ln">10</span><span class="tk-ann">@export_range</span>(<span class="tk-num">10.0</span>, <span class="tk-num">60.0</span>) <span class="tk-kw">var</span> perspective_fov := <span class="tk-num">28.0</span>
+<span class="ln">11</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> follow_sharpness := <span class="tk-num">12.0</span>
+<span class="ln">12</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> max_shake_offset := <span class="tk-num">0.35</span>
+<span class="ln">13</span>
+<span class="ln">14</span><span class="tk-com">## Off = add_shake() does nothing (Options &gt; Screen shake; set by Game).</span>
+<span class="ln">15</span><span class="tk-kw">var</span> shake_enabled := <span class="tk-kw">true</span>
+<span class="ln">16</span>
+<span class="ln">17</span><span class="tk-kw">var</span> _trauma := <span class="tk-num">0.0</span>
+<span class="ln">18</span>
+<span class="ln">19</span><span class="tk-ann">@onready</span> <span class="tk-kw">var</span> camera: <span class="tk-ty">Camera3D</span> = $<span class="tk-ty">Camera3D</span>
+<span class="ln">20</span>
+<span class="ln">21</span>
+<span class="ln">22</span><span class="tk-kw">func</span> <span class="tk-fn">_ready</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">23</span>    <span class="tk-fn">apply_settings</span>()
+<span class="ln">24</span>
+<span class="ln">25</span>
+<span class="ln">26</span><span class="tk-kw">func</span> <span class="tk-fn">apply_settings</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">27</span>    <span class="tk-kw">var</span> p := <span class="tk-fn">deg_to_rad</span>(pitch_degrees)
+<span class="ln">28</span>    camera.position = <span class="tk-ty">Vector3</span>(<span class="tk-num">0.0</span>, <span class="tk-fn">sin</span>(p) * distance, <span class="tk-fn">cos</span>(p) * distance)
+<span class="ln">29</span>    camera.rotation = <span class="tk-ty">Vector3</span>(-p, <span class="tk-num">0.0</span>, <span class="tk-num">0.0</span>)
+<span class="ln">30</span>    camera.far = distance * <span class="tk-num">4.0</span>
+<span class="ln">31</span>    <span class="tk-kw">if</span> use_orthographic:
+<span class="ln">32</span>        camera.projection = <span class="tk-ty">Camera3D</span>.PROJECTION_ORTHOGONAL
+<span class="ln">33</span>        camera.size = ortho_size
+<span class="ln">34</span>    <span class="tk-kw">else</span>:
+<span class="ln">35</span>        camera.projection = <span class="tk-ty">Camera3D</span>.PROJECTION_PERSPECTIVE
+<span class="ln">36</span>        camera.fov = perspective_fov</code></pre></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">28</b>Dengan pitch <code>p</code> dan jarak 30, kamera berada <code>sin(p)·30</code> di atas dan <code>cos(p)·30</code> di belakang rig. Itu trigonometri biasa: sisi segitiga siku-siku dengan sudut <code>p</code>.</li>
+  <li><b class="ln">29</b>Lalu kamera diputar menunduk sebesar <code>-p</code> di sumbu X, sehingga ia menatap tepat ke rig.</li>
+  <li><b class="ln">33</b><code>ortho_size = 13</code>: layar memperlihatkan 13 unit dunia secara vertikal. Karena 16 piksel = 1 unit dan layar 720 piksel, satu piksel art jadi kira-kira 3 piksel layar.</li>
+</ul>
+<div class="code" data-src="core/camera_rig.gd" data-from="^func tick" data-to="^## Ground rect"><div class="file"><span><b>core/camera_rig.gd</b> · baris 43–52</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">43</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(dt: <span class="tk-ty">float</span>, target: <span class="tk-ty">Vector3</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">44</span>    global_position = global_position.<span class="tk-fn">lerp</span>(target, <span class="tk-num">1.0</span> - <span class="tk-fn">exp</span>(-follow_sharpness * dt))
+<span class="ln">45</span>    <span class="tk-kw">if</span> _trauma &gt; <span class="tk-num">0.0</span>:
+<span class="ln">46</span>        _trauma = <span class="tk-fn">maxf</span>(<span class="tk-num">0.0</span>, _trauma - dt * <span class="tk-num">2.5</span>)
+<span class="ln">47</span>        <span class="tk-kw">var</span> s := _trauma * _trauma * max_shake_offset
+<span class="ln">48</span>        camera.h_offset = <span class="tk-fn">randf_range</span>(-s, s)
+<span class="ln">49</span>        camera.v_offset = <span class="tk-fn">randf_range</span>(-s, s)
+<span class="ln">50</span>    <span class="tk-kw">else</span>:
+<span class="ln">51</span>        camera.h_offset = <span class="tk-num">0.0</span>
+<span class="ln">52</span>        camera.v_offset = <span class="tk-num">0.0</span></code></pre></div><!--/code-->
+<p>Baris 44 adalah pola yang akan sering kamu lihat: <b>lerp dengan faktor <code>1 - exp(-k·dt)</code></b>. Kalau kamu menulis <code>lerp(target, 0.2)</code> tiap frame, kamera mengikuti lebih cepat di 144 FPS daripada di 60 FPS. Dengan eksponen, hasilnya sama berapa pun FPS-nya: setelah 1 detik selalu tersisa <code>exp(-12)</code> dari jarak awal. Knockback musuh (Fase 1) dan peluruhan shake (Fase 6) memakai ide yang sama.</p>
+
+<h2 id="sprite-player">Langkah 3: pemain sebagai Sprite3D billboard</h2>
+<ol class="steps">
+  <li>Scene baru, root <b>Node3D</b> bernama <code>Player</code>, simpan <code>player/player.tscn</code>, tempel <code>player/player.gd</code>.</li>
+  <li>Child <b>Sprite3D</b> bernama <code>Sprite</code>: Texture <code>art/sprites/player_hunter.png</code>, Animation → Hframes <code>4</code>, Pixel Size <code>0.0625</code> (= 1/16, jadi 16 px = 1 unit), Offset Y <code>9</code> (setengah sel 18 px, supaya kaki berdiri di titik origin), Flags → Billboard <code>Y-Billboard</code>, Shaded off, Alpha Cut <code>Discard</code>, Texture Filter <code>Nearest</code>.</li>
+  <li>Di Transform, Scale Y = <code>1.55</code>. Kenapa? Lihat demo di bawah.</li>
+  <li>Child <b>MeshInstance3D</b> <code>Shadow</code>: PlaneMesh 1×0,55 dengan shader <code>shaders/blob_shadow.gdshader</code>, posisi Y 0,02 (sedikit di atas tanah supaya tidak z-fighting).</li>
+  <li>Child <b>Node3D</b> <code>Weapons</code>: senjata akan ditambahkan sebagai anak node ini saat run.</li>
+  <li>Instance <code>player.tscn</code> ke <code>main.tscn</code> (<span class="menu-path">klik kanan Main → Instantiate Child Scene</span>).</li>
+</ol>
+<div class="code" data-src="player/player.tscn" data-from="^\[node name=.Sprite." data-to="^\[node name=.Weapons."><div class="file"><span><b>player/player.tscn</b> · baris 24–34</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">24</span>[node name=<span class="tk-str">&quot;Sprite&quot;</span> type=<span class="tk-str">&quot;Sprite3D&quot;</span> parent=<span class="tk-str">&quot;.&quot;</span>]
+<span class="ln">25</span>transform = <span class="tk-ty">Transform3D</span>(<span class="tk-num">1</span>, <span class="tk-num">0</span>, <span class="tk-num">0</span>, <span class="tk-num">0</span>, <span class="tk-num">1.55</span>, <span class="tk-num">0</span>, <span class="tk-num">0</span>, <span class="tk-num">0</span>, <span class="tk-num">1</span>, <span class="tk-num">0</span>, <span class="tk-num">0</span>, <span class="tk-num">0</span>)
+<span class="ln">26</span>cast_shadow = <span class="tk-num">0</span>
+<span class="ln">27</span>offset = <span class="tk-ty">Vector2</span>(<span class="tk-num">0</span>, <span class="tk-num">9</span>)
+<span class="ln">28</span>pixel_size = <span class="tk-num">0.0625</span>
+<span class="ln">29</span>billboard = <span class="tk-num">2</span>
+<span class="ln">30</span>shaded = <span class="tk-kw">false</span>
+<span class="ln">31</span>alpha_cut = <span class="tk-num">1</span>
+<span class="ln">32</span>texture_filter = <span class="tk-num">0</span>
+<span class="ln">33</span>texture = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;2_sheet&quot;</span>)
+<span class="ln">34</span>hframes = <span class="tk-num">4</span></code></pre></div><!--/code-->
+<p><code>billboard = 2</code> adalah <code>BILLBOARD_FIXED_Y</code>: sprite hanya berputar di sumbu Y menghadap kamera, tetap tegak lurus tanah. Billboard penuh (<code>1</code>) akan ikut menunduk 50° dan terlihat rebah.</p>
+<div class="demo" data-demo="billboard"></div>
+<p>Inilah alasan angka <code>1.55</code> muncul di mana-mana (<code>y_stretch</code> di setiap Field, scale Y Sprite3D pemain). Sprite berdiri tegak, kamera menunduk 50°, jadi tinggi sprite di layar menyusut menjadi <code>cos 50° ≈ 0,643</code>. Dikali 1,55 hasilnya ≈ 1,0: piksel art tetap persegi. Tanah sendiri menyusut <code>sin 50° ≈ 0,766</code>, yang memberi kesan perspektif miring. Itulah "2.5D".</p>
+
+<h2 id="kenapa-bukan-node">Konsep: kenapa musuh bukan node</h2>
+<div class="callout"><span class="tag">Konsep · data-oriented design</span>
+  <p>Cara paling mudah membuat musuh adalah scene <code>enemy.tscn</code> dengan skrip yang punya <code>_process</code> sendiri, lalu di-instance 1000 kali. Untuk 50 musuh itu baik-baik saja. Untuk 1000+ ada tiga biaya yang menumpuk:</p>
+  <ul>
+    <li><b>Panggilan per node.</b> Tiap frame Godot memanggil 1000 <code>_process</code>, masing-masing lewat mesin skrip. Biaya panggilan itu sendiri sudah signifikan di GDScript.</li>
+    <li><b>Transform per node.</b> Mengubah <code>position</code> node memicu notifikasi transform, update ke RenderingServer, dan pengecekan AABB, satu per musuh.</li>
+    <li><b>Memori tersebar.</b> Data tiap musuh ada di objek berbeda di memori. CPU paling cepat membaca data yang berurutan.</li>
+  </ul>
+  <p>Solusinya: simpan semua musuh sebagai <b>baris</b> di beberapa array yang <b>paralel</b>: <code>pos[i]</code>, <code>hp[i]</code>, <code>speed[i]</code>, … semuanya milik musuh ke-<code>i</code>. Satu loop memproses semuanya. Untuk menggambar, satu <b>MultiMesh</b> menerima satu buffer berisi transform semua musuh sekaligus.</p>
+</div>
+<p>Packed array (<code>PackedVector2Array</code>, <code>PackedFloat32Array</code>, <code>PackedInt32Array</code>) menyimpan angka berjejer rapat tanpa pembungkus Variant, jauh lebih hemat dan cepat dibanding <code>Array</code> biasa.</p>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^var types: Array\[EnemyData\]" data-to="^var _t_weave_amt"><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 68–93</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">68</span><span class="tk-kw">var</span> types: <span class="tk-ty">Array</span>[EnemyData] = []
+<span class="ln">69</span><span class="tk-kw">var</span> count := <span class="tk-num">0</span>
+<span class="ln">70</span><span class="tk-kw">var</span> large_count := <span class="tk-num">0</span>
+<span class="ln">71</span><span class="tk-kw">var</span> pos := <span class="tk-ty">PackedVector2Array</span>()
+<span class="ln">72</span><span class="tk-kw">var</span> knock := <span class="tk-ty">PackedVector2Array</span>()
+<span class="ln">73</span><span class="tk-com">## Hits since Game last read it (one hit sound per frame).</span>
+<span class="ln">74</span><span class="tk-kw">var</span> hits_this_frame := <span class="tk-num">0</span>
+<span class="ln">75</span><span class="tk-kw">var</span> hp := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">76</span><span class="tk-kw">var</span> speed := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">77</span><span class="tk-kw">var</span> radius := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">78</span><span class="tk-kw">var</span> damage := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">79</span><span class="tk-kw">var</span> size := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">80</span><span class="tk-kw">var</span> kb_resist := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">81</span><span class="tk-kw">var</span> flash := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">82</span><span class="tk-kw">var</span> facing := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">83</span><span class="tk-kw">var</span> phase := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">84</span><span class="tk-kw">var</span> row := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">85</span><span class="tk-kw">var</span> type_idx := <span class="tk-ty">PackedInt32Array</span>()
+<span class="ln">86</span><span class="tk-kw">var</span> behavior := <span class="tk-ty">PackedInt32Array</span>()
+<span class="ln">87</span><span class="tk-kw">var</span> flags := <span class="tk-ty">PackedInt32Array</span>()
+<span class="ln">88</span><span class="tk-com">## DRIFT: unit direction. SCRIPTED: velocity (world units/s).</span>
+<span class="ln">89</span><span class="tk-kw">var</span> dir := <span class="tk-ty">PackedVector2Array</span>()
+<span class="ln">90</span><span class="tk-com">## WEAVE: wobble clock. RANGED: seconds to next shot. DRIFT: seconds left.</span>
+<span class="ln">91</span><span class="tk-kw">var</span> timer := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">92</span><span class="tk-com">## Stable id per spawned enemy (slots move on removal; ids do not).</span>
+<span class="ln">93</span><span class="tk-kw">var</span> uid := <span class="tk-ty">PackedInt32Array</span>()</code></pre></div><!--/code-->
+<div class="callout"><span class="tag">Konsep · copy-on-write</span>
+  <p>Packed array di GDScript adalah <b>nilai</b> dengan copy-on-write: <code>var b := pos</code> tidak menyalin datanya, tapi begitu kamu <b>menulis</b> ke <code>b</code>, Godot menyalin seluruh array agar <code>pos</code> tidak ikut berubah. Dua akibat yang terlihat di kode:</p>
+  <ul>
+    <li>Di <code>_ready</code>, tiap array di-<code>resize</code> langsung lewat namanya (bukan lewat loop atas daftar array), karena alias lokal akan meresize salinan.</li>
+    <li>Di <code>upload()</code>, penulisan ke <code>_buf</code> dan <code>_large_buf</code> sengaja ditulis dua kali dalam dua cabang alih-alih <code>var b := _large_buf if … else _buf</code>, karena alias itu akan menyalin buffer tiap frame.</li>
+  </ul>
+  <p>Membaca lewat alias aman dan murah. Itu sebabnya <code>_separate()</code> boleh menulis <code>var starts := _grid.cell_start</code>: hanya dibaca.</p>
+</div>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^func _ready" data-to="var blob := PlaneMesh" data-hl="116"><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 114–137</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">114</span><span class="tk-kw">func</span> <span class="tk-fn">_ready</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">115</span>    _grid = SpatialHash.<span class="tk-fn">new</span>(grid_cell_size)
+<span class="hl"><span class="ln">116</span>    <span class="tk-com"># Packed arrays are copy-on-write values: resize each member directly.</span></span>
+<span class="ln">117</span>    pos.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">118</span>    knock.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">119</span>    hp.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">120</span>    speed.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">121</span>    radius.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">122</span>    damage.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">123</span>    size.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">124</span>    kb_resist.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">125</span>    flash.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">126</span>    facing.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">127</span>    phase.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">128</span>    row.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">129</span>    type_idx.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">130</span>    behavior.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">131</span>    flags.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">132</span>    dir.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">133</span>    timer.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">134</span>    uid.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">135</span>    _stamp.<span class="tk-fn">resize</span>(capacity)
+<span class="ln">136</span>    _buf.<span class="tk-fn">resize</span>(capacity * STRIDE)
+<span class="ln">137</span>    _large_buf.<span class="tk-fn">resize</span>(large_capacity * STRIDE)</code></pre></div><!--/code-->
+
+<h2 id="enemy-data">Langkah 4: EnemyData sebagai Resource</h2>
+<p>Statistik musuh tidak ditulis di kode. Buat kelas Resource:</p>
+<div class="code" data-src="enemies/enemy_data.gd" data-ref="3f048ff" data-lines="1-18"><div class="file"><span><b>enemies/enemy_data.gd</b> · baris 1–18 · @3f048ff</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> EnemyData
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">Resource</span>
+<span class="ln"> 3</span><span class="tk-com">## One enemy archetype. Values are copied into EnemySwarm&#x27;s packed arrays on</span>
+<span class="ln"> 4</span><span class="tk-com">## spawn, so the hot loop never touches this Resource.</span>
+<span class="ln"> 5</span>
+<span class="ln"> 6</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> id: <span class="tk-ty">StringName</span>
+<span class="ln"> 7</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> display_name := <span class="tk-str">&quot;&quot;</span>
+<span class="ln"> 8</span><span class="tk-com">## Row in the enemy sprite sheet (art/sprites/enemies.png).</span>
+<span class="ln"> 9</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> sprite_row := <span class="tk-num">0</span>
+<span class="ln">10</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> max_hp := <span class="tk-num">10.0</span>
+<span class="ln">11</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> move_speed := <span class="tk-num">2.0</span>
+<span class="ln">12</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> contact_damage := <span class="tk-num">5.0</span>
+<span class="ln">13</span><span class="tk-com">## Collision radius on the gameplay plane (world units).</span>
+<span class="ln">14</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> radius := <span class="tk-num">0.4</span>
+<span class="ln">15</span><span class="tk-com">## Multiplier on the billboard size (1.0 = 18px cell at 16px per unit).</span>
+<span class="ln">16</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> scale := <span class="tk-num">1.0</span>
+<span class="ln">17</span><span class="tk-ann">@export_range</span>(<span class="tk-num">0.0</span>, <span class="tk-num">1.0</span>) <span class="tk-kw">var</span> knockback_resist := <span class="tk-num">0.0</span>
+<span class="ln">18</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> xp_value := <span class="tk-num">1.0</span></code></pre></div><!--/code-->
+<ol class="steps">
+  <li>Simpan skrip di <code>enemies/enemy_data.gd</code>. Karena ada <code>class_name EnemyData</code>, kelas ini terdaftar global.</li>
+  <li>Di FileSystem klik kanan <code>data/enemies/</code> → <span class="menu-path">Create New → Resource…</span>, cari <b>EnemyData</b>, simpan sebagai <code>ghoul.tres</code>.</li>
+  <li>Klik file itu: semua <code>@export</code> muncul di Inspector. Isi Max HP 12, Move Speed 2,2, Contact Damage 8.</li>
+  <li>Ulangi untuk <code>bat.tres</code> (lebih cepat, HP kecil, Sprite Row 1).</li>
+</ol>
+<div class="code" data-src="data/enemies/ghoul.tres"><div class="file"><span><b>data/enemies/ghoul.tres</b> · baris 1–16</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span>[gd_resource type=<span class="tk-str">&quot;Resource&quot;</span> script_class=<span class="tk-str">&quot;EnemyData&quot;</span> format=<span class="tk-num">3</span>]
+<span class="ln"> 2</span>
+<span class="ln"> 3</span>[ext_resource type=<span class="tk-str">&quot;Script&quot;</span> path=<span class="tk-str">&quot;res://enemies/enemy_data.gd&quot;</span> id=<span class="tk-str">&quot;1_script&quot;</span>]
+<span class="ln"> 4</span>
+<span class="ln"> 5</span>[resource]
+<span class="ln"> 6</span>script = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;1_script&quot;</span>)
+<span class="ln"> 7</span>id = <span class="tk-ann">&amp;&quot;ghoul&quot;</span>
+<span class="ln"> 8</span>display_name = <span class="tk-str">&quot;Ghoul&quot;</span>
+<span class="ln"> 9</span>behavior = <span class="tk-num">0</span>
+<span class="ln">10</span>sprite_row = <span class="tk-num">0</span>
+<span class="ln">11</span>max_hp = <span class="tk-num">12.0</span>
+<span class="ln">12</span>move_speed = <span class="tk-num">2.2</span>
+<span class="ln">13</span>contact_damage = <span class="tk-num">8.0</span>
+<span class="ln">14</span>radius = <span class="tk-num">0.4</span>
+<span class="ln">15</span>scale = <span class="tk-num">1.0</span>
+<span class="ln">16</span>xp_value = <span class="tk-num">1.0</span></code></pre></div><!--/code-->
+<p>File <code>.tres</code> adalah teks. Kamu bisa membacanya, men-diff-nya, dan menyeimbangkan game tanpa membuka kode. Di Fase 5 EnemyData berkembang (perilaku, tembakan), tapi prinsipnya sama: nilai disalin ke array swarm saat spawn, sehingga loop panas tidak pernah membaca Resource.</p>
+
+<h2 id="spawn">Langkah 5: EnemySwarm.spawn dan hapus swap-with-last</h2>
+<p>Buat <b>Node3D</b> <code>EnemySwarm</code> di <code>main.tscn</code>, tempel <code>enemies/enemy_swarm.gd</code>, isi <code>sheet</code> dengan <code>art/sprites/enemies.png</code>. Slot <code>0..count-1</code> hidup. Spawn = tulis ke slot <code>count</code>, lalu <code>count += 1</code>.</p>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-ref="3f048ff" data-from="^func spawn" data-to="^func tick"><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 126–147 · @3f048ff</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">126</span><span class="tk-kw">func</span> <span class="tk-fn">spawn</span>(data: EnemyData, at: <span class="tk-ty">Vector2</span>, hp_mult: <span class="tk-ty">float</span> = <span class="tk-num">1.0</span>) -&gt; <span class="tk-ty">int</span>:
+<span class="ln">127</span>    <span class="tk-kw">if</span> count &gt;= capacity:
+<span class="ln">128</span>        <span class="tk-kw">return</span> -<span class="tk-num">1</span>
+<span class="ln">129</span>    <span class="tk-kw">var</span> i := count
+<span class="ln">130</span>    count += <span class="tk-num">1</span>
+<span class="ln">131</span>    type_idx[i] = <span class="tk-fn">_type_index</span>(data)
+<span class="ln">132</span>    pos[i] = at
+<span class="ln">133</span>    knock[i] = <span class="tk-ty">Vector2</span>.ZERO
+<span class="ln">134</span>    hp[i] = data.max_hp * hp_mult
+<span class="ln">135</span>    speed[i] = data.move_speed * <span class="tk-fn">randf_range</span>(<span class="tk-num">0.9</span>, <span class="tk-num">1.1</span>)
+<span class="ln">136</span>    radius[i] = data.radius
+<span class="ln">137</span>    damage[i] = data.contact_damage
+<span class="ln">138</span>    size[i] = CELL_WORLD * data.scale
+<span class="ln">139</span>    kb_resist[i] = data.knockback_resist
+<span class="ln">140</span>    flash[i] = <span class="tk-num">0.0</span>
+<span class="ln">141</span>    facing[i] = <span class="tk-num">1.0</span>
+<span class="ln">142</span>    phase[i] = <span class="tk-fn">randf</span>() * hframes
+<span class="ln">143</span>    row[i] = data.sprite_row
+<span class="ln">144</span>    <span class="tk-kw">return</span> i
+<span class="ln">145</span>
+<span class="ln">146</span>
+<span class="ln">147</span><span class="tk-com">## Move every enemy toward `target`, rebuild the grid, then separate.</span></code></pre></div><!--/code-->
+<p>Menghapus musuh di tengah array dengan <code>remove_at</code> akan menggeser semua elemen di belakangnya: O(n), dan dikali ratusan kematian per detik. Karena urutan musuh tidak berarti apa-apa, cukup <b>salin elemen terakhir ke lubang</b>:</p>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^func flush_dead" data-to="^## Removes slot i at the next"><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 468–478</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">468</span><span class="tk-kw">func</span> <span class="tk-fn">flush_dead</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">469</span>    <span class="tk-kw">if</span> _dead.<span class="tk-fn">is_empty</span>():
+<span class="ln">470</span>        <span class="tk-kw">return</span>
+<span class="ln">471</span>    _dead.<span class="tk-fn">sort</span>()
+<span class="ln">472</span>    <span class="tk-kw">for</span> k <span class="tk-kw">in</span> <span class="tk-fn">range</span>(_dead.<span class="tk-fn">size</span>() - <span class="tk-num">1</span>, -<span class="tk-num">1</span>, -<span class="tk-num">1</span>):
+<span class="ln">473</span>        <span class="tk-kw">var</span> i := _dead[k]
+<span class="ln">474</span>        <span class="tk-kw">var</span> f := flags[i]
+<span class="ln">475</span>        <span class="tk-kw">if</span> <span class="tk-kw">not</span> f &amp; SILENT:
+<span class="ln">476</span>            enemy_died.<span class="tk-fn">emit</span>(pos[i], types[type_idx[i]], f)
+<span class="ln">477</span>        <span class="tk-fn">_remove_at</span>(i)
+<span class="ln">478</span>    _dead.<span class="tk-fn">clear</span>()</code></pre></div><!--/code-->
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^func _remove_at" data-to="^## Write instance data"><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 496–519</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">496</span><span class="tk-kw">func</span> <span class="tk-fn">_remove_at</span>(i: <span class="tk-ty">int</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">497</span>    <span class="tk-kw">if</span> flags[i] &amp; LARGE:
+<span class="ln">498</span>        large_count -= <span class="tk-num">1</span>
+<span class="ln">499</span>    <span class="tk-kw">var</span> last := count - <span class="tk-num">1</span>
+<span class="ln">500</span>    <span class="tk-kw">if</span> i != last:
+<span class="ln">501</span>        pos[i] = pos[last]
+<span class="ln">502</span>        knock[i] = knock[last]
+<span class="ln">503</span>        hp[i] = hp[last]
+<span class="ln">504</span>        speed[i] = speed[last]
+<span class="ln">505</span>        radius[i] = radius[last]
+<span class="ln">506</span>        damage[i] = damage[last]
+<span class="ln">507</span>        size[i] = size[last]
+<span class="ln">508</span>        kb_resist[i] = kb_resist[last]
+<span class="ln">509</span>        flash[i] = flash[last]
+<span class="ln">510</span>        facing[i] = facing[last]
+<span class="ln">511</span>        phase[i] = phase[last]
+<span class="ln">512</span>        row[i] = row[last]
+<span class="ln">513</span>        type_idx[i] = type_idx[last]
+<span class="ln">514</span>        behavior[i] = behavior[last]
+<span class="ln">515</span>        flags[i] = flags[last]
+<span class="ln">516</span>        dir[i] = dir[last]
+<span class="ln">517</span>        timer[i] = timer[last]
+<span class="ln">518</span>        uid[i] = uid[last]
+<span class="ln">519</span>    count = last</code></pre></div><!--/code-->
+<div class="demo" data-demo="swap"></div>
+<p>Dua hal halus di <code>flush_dead</code>: kematian dikumpulkan dulu di <code>_dead</code> dan diproses setelah semua senjata selesai (supaya indeks tidak berubah di tengah loop senjata), lalu <code>_dead</code> <b>diurutkan dan diproses dari belakang</b>. Kalau slot 3 dan 9 mati dan 9 adalah slot terakhir, menghapus 3 dulu akan memindahkan isi slot 9 ke 3, lalu "hapus 9" menghapus musuh yang salah.</p>
+
+<h2 id="multimesh">Langkah 6: menggambar dengan MultiMesh</h2>
+<div class="callout"><span class="tag">Konsep · MultiMesh dan RenderingServer</span><p><b>MultiMesh</b> menggambar satu mesh sebanyak <i>N</i> kali dalam satu draw call, masing-masing dengan transform dan data warnanya sendiri. <b>RenderingServer</b> adalah API tingkat rendah tempat node visual Godot sebenarnya berbicara. Dengan <code>RenderingServer.multimesh_set_buffer(rid, buffer)</code> kita mengirim semua data instance dalam <b>satu panggilan</b>, bukan <i>N</i> panggilan <code>set_instance_transform</code>.</p></div>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^func _make_multimesh" data-to="^func _type_index"><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 167–180</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">167</span><span class="tk-kw">func</span> <span class="tk-fn">_make_multimesh</span>(mesh: Mesh, n: <span class="tk-ty">int</span>) -&gt; <span class="tk-ty">MultiMesh</span>:
+<span class="ln">168</span>    <span class="tk-kw">var</span> mm := <span class="tk-ty">MultiMesh</span>.<span class="tk-fn">new</span>()
+<span class="ln">169</span>    mm.transform_format = <span class="tk-ty">MultiMesh</span>.TRANSFORM_3D
+<span class="ln">170</span>    mm.use_custom_data = <span class="tk-kw">true</span>
+<span class="ln">171</span>    mm.mesh = mesh
+<span class="ln">172</span>    mm.instance_count = n
+<span class="ln">173</span>    mm.visible_instance_count = <span class="tk-num">0</span>
+<span class="ln">174</span>    <span class="tk-com"># Fixed huge AABB: skips per-frame AABB recompute and frustum-cull surprises.</span>
+<span class="ln">175</span>    mm.custom_aabb = <span class="tk-ty">AABB</span>(<span class="tk-ty">Vector3</span>(-<span class="tk-num">10000</span>, -<span class="tk-num">10</span>, -<span class="tk-num">10000</span>), <span class="tk-ty">Vector3</span>(<span class="tk-num">20000</span>, <span class="tk-num">50</span>, <span class="tk-num">20000</span>))
+<span class="ln">176</span>    <span class="tk-kw">var</span> mmi := <span class="tk-ty">MultiMeshInstance3D</span>.<span class="tk-fn">new</span>()
+<span class="ln">177</span>    mmi.multimesh = mm
+<span class="ln">178</span>    mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+<span class="ln">179</span>    <span class="tk-fn">add_child</span>(mmi)
+<span class="ln">180</span>    <span class="tk-kw">return</span> mm</code></pre></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">169</b><code>TRANSFORM_3D</code> + <code>use_custom_data</code>: tiap instance = 12 float transform + 4 float custom = 16 float (<code>STRIDE</code>).</li>
+  <li><b class="ln">172</b><code>instance_count</code> diset sekali ke kapasitas penuh. Yang berubah tiap frame hanya <code>visible_instance_count</code>; mengubah <code>instance_count</code> akan mengalokasikan ulang buffer GPU.</li>
+  <li><b class="ln">175</b><code>custom_aabb</code> raksasa: Godot tidak perlu menghitung ulang kotak pembatas dari ribuan instance, dan MultiMesh tidak pernah ter-<i>cull</i> karena AABB lama.</li>
+</ul>
+<p>Setiap musuh menulis 16 float. Dari 12 float transform, hanya 5 yang berubah: skala di diagonal (indeks 0, 5, 10) dan posisi x, z (indeks 3, 11). Sisanya tetap 0, jadi tidak perlu ditulis ulang. Empat float terakhir menjadi <code>INSTANCE_CUSTOM</code> di shader.</p>
+<div class="demo" data-demo="buffer"></div>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-ref="3f048ff" data-from="^func upload" data-hl="330-331"><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 316–333 · @3f048ff</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">316</span><span class="tk-kw">func</span> <span class="tk-fn">upload</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">317</span>    <span class="tk-kw">for</span> i <span class="tk-kw">in</span> count:
+<span class="ln">318</span>        <span class="tk-kw">var</span> o := i * STRIDE
+<span class="ln">319</span>        <span class="tk-kw">var</span> s := size[i]
+<span class="ln">320</span>        <span class="tk-kw">var</span> p := pos[i]
+<span class="ln">321</span>        _buf[o] = s
+<span class="ln">322</span>        _buf[o + <span class="tk-num">3</span>] = p.x
+<span class="ln">323</span>        _buf[o + <span class="tk-num">5</span>] = s
+<span class="ln">324</span>        _buf[o + <span class="tk-num">10</span>] = s
+<span class="ln">325</span>        _buf[o + <span class="tk-num">11</span>] = p.y
+<span class="ln">326</span>        _buf[o + <span class="tk-num">12</span>] = phase[i]
+<span class="ln">327</span>        _buf[o + <span class="tk-num">13</span>] = facing[i]
+<span class="ln">328</span>        _buf[o + <span class="tk-num">14</span>] = flash[i]
+<span class="ln">329</span>        _buf[o + <span class="tk-num">15</span>] = row[i]
+<span class="hl"><span class="ln">330</span>    <span class="tk-ty">RenderingServer</span>.<span class="tk-fn">multimesh_set_buffer</span>(_mm.<span class="tk-fn">get_rid</span>(), _buf)</span>
+<span class="hl"><span class="ln">331</span>    <span class="tk-ty">RenderingServer</span>.<span class="tk-fn">multimesh_set_buffer</span>(_shadow_mm.<span class="tk-fn">get_rid</span>(), _buf)</span>
+<span class="ln">332</span>    _mm.visible_instance_count = count
+<span class="ln">333</span>    _shadow_mm.visible_instance_count = count</code></pre></div><!--/code-->
+<p>Bayangan memakai buffer yang <b>sama</b> (<code>_shadow_mm</code> diberi <code>_buf</code> juga): transformnya identik, dan shader bayangan mengabaikan data custom. Dua MultiMesh, dua panggilan, nol kerja tambahan di CPU.</p>
+
+<h3 id="shader-billboard">Shader sprite billboard</h3>
+<p>MultiMesh tidak punya opsi billboard seperti Sprite3D, jadi shader <code>sprite_billboard.gdshader</code> melakukannya sendiri, sekaligus memilih frame animasi, membalik sprite, dan memberi hit flash dari <code>INSTANCE_CUSTOM</code>.</p>
+<div class="code" data-src="shaders/sprite_billboard.gdshader" data-ref="3f048ff"><div class="file"><span><b>shaders/sprite_billboard.gdshader</b> · baris 1–47 · @3f048ff</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-com">// Y-axis billboard sprite for MultiMesh instances.</span>
+<span class="ln"> 2</span><span class="tk-com">// INSTANCE_CUSTOM: x = animation phase (frame offset; with fps = 0 it is the</span>
+<span class="ln"> 3</span><span class="tk-com">// frame index), y = facing (+1 right / -1 left), z = hit flash 0..1,</span>
+<span class="ln"> 4</span><span class="tk-com">// w = sheet row.</span>
+<span class="ln"> 5</span><span class="tk-kw">shader_type</span> spatial;
+<span class="ln"> 6</span><span class="tk-kw">render_mode</span> unshaded, cull_disabled, depth_draw_opaque, shadows_disabled;
+<span class="ln"> 7</span>
+<span class="ln"> 8</span><span class="tk-kw">uniform</span> <span class="tk-ty">sampler2D</span> sheet : source_color, filter_nearest;
+<span class="ln"> 9</span><span class="tk-kw">uniform</span> <span class="tk-ty">int</span> hframes = <span class="tk-num">4</span>;
+<span class="ln">10</span><span class="tk-kw">uniform</span> <span class="tk-ty">int</span> vframes = <span class="tk-num">1</span>;
+<span class="ln">11</span><span class="tk-kw">uniform</span> <span class="tk-ty">float</span> fps = <span class="tk-num">8.0</span>;
+<span class="ln">12</span><span class="tk-kw">uniform</span> <span class="tk-ty">float</span> y_stretch = <span class="tk-num">1.55</span>;
+<span class="ln">13</span><span class="tk-kw">uniform</span> <span class="tk-ty">vec4</span> flash_color : source_color = <span class="tk-ty">vec4</span>(<span class="tk-num">1.0</span>, <span class="tk-num">1.0</span>, <span class="tk-num">1.0</span>, <span class="tk-num">1.0</span>);
+<span class="ln">14</span>
+<span class="ln">15</span><span class="tk-kw">varying</span> <span class="tk-ty">vec2</span> v_uv;
+<span class="ln">16</span><span class="tk-kw">varying</span> <span class="tk-ty">float</span> v_flash;
+<span class="ln">17</span>
+<span class="ln">18</span><span class="tk-kw">void</span> <span class="tk-fn">vertex</span>() {
+<span class="ln">19</span>    <span class="tk-ty">float</span> frame = <span class="tk-fn">floor</span>(<span class="tk-fn">mod</span>(TIME * fps + INSTANCE_CUSTOM.x, <span class="tk-ty">float</span>(hframes)));
+<span class="ln">20</span>    <span class="tk-ty">vec2</span> uv = UV;
+<span class="ln">21</span>    <span class="tk-kw">if</span> (INSTANCE_CUSTOM.y &lt; <span class="tk-num">0.0</span>) {
+<span class="ln">22</span>        uv.x = <span class="tk-num">1.0</span> - uv.x;
+<span class="ln">23</span>    }
+<span class="ln">24</span>    v_uv = (uv + <span class="tk-ty">vec2</span>(frame, INSTANCE_CUSTOM.w)) / <span class="tk-ty">vec2</span>(<span class="tk-ty">float</span>(hframes), <span class="tk-ty">float</span>(vframes));
+<span class="ln">25</span>    v_flash = INSTANCE_CUSTOM.z;
+<span class="ln">26</span>
+<span class="ln">27</span>    VERTEX.y *= y_stretch;
+<span class="ln">28</span>    <span class="tk-com">// Rotate around world Y to face the camera, keep instance scale.</span>
+<span class="ln">29</span>    MODELVIEW_MATRIX = VIEW_MATRIX * <span class="tk-ty">mat4</span>(
+<span class="ln">30</span>        <span class="tk-ty">vec4</span>(<span class="tk-fn">normalize</span>(<span class="tk-fn">cross</span>(<span class="tk-ty">vec3</span>(<span class="tk-num">0.0</span>, <span class="tk-num">1.0</span>, <span class="tk-num">0.0</span>), INV_VIEW_MATRIX[<span class="tk-num">2</span>].xyz)), <span class="tk-num">0.0</span>),
+<span class="ln">31</span>        <span class="tk-ty">vec4</span>(<span class="tk-num">0.0</span>, <span class="tk-num">1.0</span>, <span class="tk-num">0.0</span>, <span class="tk-num">0.0</span>),
+<span class="ln">32</span>        <span class="tk-ty">vec4</span>(<span class="tk-fn">normalize</span>(<span class="tk-fn">cross</span>(INV_VIEW_MATRIX[<span class="tk-num">0</span>].xyz, <span class="tk-ty">vec3</span>(<span class="tk-num">0.0</span>, <span class="tk-num">1.0</span>, <span class="tk-num">0.0</span>))), <span class="tk-num">0.0</span>),
+<span class="ln">33</span>        MODEL_MATRIX[<span class="tk-num">3</span>]);
+<span class="ln">34</span>    MODELVIEW_MATRIX = MODELVIEW_MATRIX * <span class="tk-ty">mat4</span>(
+<span class="ln">35</span>        <span class="tk-ty">vec4</span>(<span class="tk-fn">length</span>(MODEL_MATRIX[<span class="tk-num">0</span>].xyz), <span class="tk-num">0.0</span>, <span class="tk-num">0.0</span>, <span class="tk-num">0.0</span>),
+<span class="ln">36</span>        <span class="tk-ty">vec4</span>(<span class="tk-num">0.0</span>, <span class="tk-fn">length</span>(MODEL_MATRIX[<span class="tk-num">1</span>].xyz), <span class="tk-num">0.0</span>, <span class="tk-num">0.0</span>),
+<span class="ln">37</span>        <span class="tk-ty">vec4</span>(<span class="tk-num">0.0</span>, <span class="tk-num">0.0</span>, <span class="tk-fn">length</span>(MODEL_MATRIX[<span class="tk-num">2</span>].xyz), <span class="tk-num">0.0</span>),
+<span class="ln">38</span>        <span class="tk-ty">vec4</span>(<span class="tk-num">0.0</span>, <span class="tk-num">0.0</span>, <span class="tk-num">0.0</span>, <span class="tk-num">1.0</span>));
+<span class="ln">39</span>    MODELVIEW_NORMAL_MATRIX = <span class="tk-ty">mat3</span>(MODELVIEW_MATRIX);
+<span class="ln">40</span>}
+<span class="ln">41</span>
+<span class="ln">42</span><span class="tk-kw">void</span> <span class="tk-fn">fragment</span>() {
+<span class="ln">43</span>    <span class="tk-ty">vec4</span> c = <span class="tk-fn">texture</span>(sheet, v_uv);
+<span class="ln">44</span>    ALBEDO = <span class="tk-fn">mix</span>(c.rgb, flash_color.rgb, v_flash);
+<span class="ln">45</span>    ALPHA = c.a;
+<span class="ln">46</span>    ALPHA_SCISSOR_THRESHOLD = <span class="tk-num">0.5</span>;
+<span class="ln">47</span>}</code></pre></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">vertex</b><code>frame = floor(mod(TIME * fps + INSTANCE_CUSTOM.x, hframes))</code>: animasi berjalan di GPU. CPU tidak perlu mengirim frame tiap saat; <code>phase</code> acak per musuh membuat gerombolan tidak bergerak serempak.</li>
+  <li><b class="ln">uv</b>Kalau <code>INSTANCE_CUSTOM.y &lt; 0</code>, <code>uv.x = 1 - uv.x</code>: sprite dicerminkan, menghadap kiri.</li>
+  <li><b class="ln">VERTEX.y</b>Dikali <code>y_stretch</code> sebelum rotasi.</li>
+  <li><b class="ln">MODELVIEW</b>Matriks dibangun ulang: sumbu X = arah kanan kamera diproyeksikan ke horizontal, sumbu Y = tegak dunia, sumbu Z = cross keduanya, posisi = posisi instance. Lalu dikali skala instance (panjang kolom <code>MODEL_MATRIX</code>). Hasilnya: billboard sumbu Y untuk setiap instance.</li>
+  <li><b class="ln">fragment</b><code>ALPHA_SCISSOR_THRESHOLD = 0.5</code>: piksel transparan dibuang, sisanya opak. Sprite bisa ditulis ke depth buffer sehingga urutan depan-belakang benar tanpa sorting.</li>
+</ul>
+
+<h2 id="tick">Langkah 7: gerak musuh</h2>
+<p>Satu loop untuk semua musuh. Versi Fase 1 hanya punya satu perilaku: kejar pemain.</p>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-ref="3f048ff" data-from="^func tick" data-to="^func _separate"><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 148–173 · @3f048ff</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">148</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(dt: <span class="tk-ty">float</span>, target: <span class="tk-ty">Vector2</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">149</span>    <span class="tk-kw">var</span> decay := <span class="tk-fn">maxf</span>(<span class="tk-num">0.0</span>, <span class="tk-num">1.0</span> - <span class="tk-num">8.0</span> * dt)
+<span class="ln">150</span>    <span class="tk-kw">var</span> far2 := relocate_distance * relocate_distance
+<span class="ln">151</span>    <span class="tk-kw">var</span> flash_drop := dt * <span class="tk-num">8.0</span>
+<span class="ln">152</span>    <span class="tk-kw">for</span> i <span class="tk-kw">in</span> count:
+<span class="ln">153</span>        <span class="tk-kw">var</span> p := pos[i]
+<span class="ln">154</span>        <span class="tk-kw">var</span> d := target - p
+<span class="ln">155</span>        <span class="tk-kw">var</span> l2 := d.<span class="tk-fn">length_squared</span>()
+<span class="ln">156</span>        <span class="tk-kw">if</span> l2 &gt; far2:
+<span class="ln">157</span>            <span class="tk-com"># Left behind: wrap around to the side the player is heading to.</span>
+<span class="ln">158</span>            pos[i] = target + d.<span class="tk-fn">normalized</span>() * relocate_radius
+<span class="ln">159</span>            <span class="tk-kw">continue</span>
+<span class="ln">160</span>        <span class="tk-kw">var</span> v := <span class="tk-ty">Vector2</span>.ZERO
+<span class="ln">161</span>        <span class="tk-kw">if</span> l2 &gt; <span class="tk-num">0.0001</span>:
+<span class="ln">162</span>            v = d * (speed[i] / <span class="tk-fn">sqrt</span>(l2))
+<span class="ln">163</span>        <span class="tk-kw">var</span> k := knock[i]
+<span class="ln">164</span>        pos[i] = p + (v + k) * dt
+<span class="ln">165</span>        knock[i] = k * decay
+<span class="ln">166</span>        <span class="tk-kw">if</span> d.x &gt; <span class="tk-num">0.05</span>:
+<span class="ln">167</span>            facing[i] = <span class="tk-num">1.0</span>
+<span class="ln">168</span>        <span class="tk-kw">elif</span> d.x &lt; -<span class="tk-num">0.05</span>:
+<span class="ln">169</span>            facing[i] = -<span class="tk-num">1.0</span>
+<span class="ln">170</span>        <span class="tk-kw">if</span> flash[i] &gt; <span class="tk-num">0.0</span>:
+<span class="ln">171</span>            flash[i] = <span class="tk-fn">maxf</span>(<span class="tk-num">0.0</span>, flash[i] - flash_drop)
+<span class="ln">172</span>    _grid.<span class="tk-fn">build</span>(pos, count)
+<span class="ln">173</span>    <span class="tk-fn">_separate</span>()</code></pre></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">seek</b><code>v = d * (speed / |d|)</code>: vektor ke pemain dinormalisasi lalu dikali kecepatan. Satu akar kuadrat per musuh. Ini perilaku <b>seek</b> paling dasar.</li>
+  <li><b class="ln">relokasi</b>Musuh yang tertinggal lebih dari 34 unit dipindah ke cincin 20 unit di sisi seberang, yaitu ke arah pemain sedang berjalan. Pemain yang lari terus tidak meninggalkan ribuan musuh tak berguna di belakang.</li>
+  <li><b class="ln">knock</b>Knockback disimpan terpisah dari kecepatan kejar, ditambahkan ke gerak, lalu meluruh <code>knock *= exp(-knock_decay·dt)</code>.</li>
+  <li><b class="ln">grid</b>Setelah semua bergerak, grid dibangun ulang dan separasi dijalankan.</li>
+</ul>
+<div class="demo" data-demo="chase"></div>
+
+<h2 id="spatial-hash">Langkah 8: SpatialHash</h2>
+<p>Separasi, damage aura, proyektil, dan tabrakan dengan pemain semuanya bertanya hal yang sama: <i>musuh mana yang dekat titik ini?</i> Mengecek semua musuh berarti O(n) per pertanyaan; separasi (setiap musuh bertanya) menjadi O(n²): 1000 musuh = sejuta cek per frame.</p>
+<div class="callout"><span class="tag">Konsep · uniform grid + hash</span><p>Bagi dunia menjadi sel persegi (1,2 unit). Musuh hanya perlu dicek terhadap musuh di sel yang sama dan sel tetangga. Karena dunia tidak terbatas, koordinat sel <code>(cx, cy)</code> di-<b>hash</b> ke tabel berukuran tetap 4096 bucket: <code>((cx · 73856093) ^ (cy · 19349663)) &amp; 4095</code>. Dua sel jauh bisa jatuh ke bucket yang sama (tabrakan hash), jadi pemanggil tetap harus mengecek jarak sebenarnya.</p></div>
+<div class="code" data-src="core/spatial_hash.gd"><div class="file"><span><b>core/spatial_hash.gd</b> · baris 1–47</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> SpatialHash
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">RefCounted</span>
+<span class="ln"> 3</span><span class="tk-com">## Uniform grid hashed into a fixed bucket table, rebuilt from scratch every</span>
+<span class="ln"> 4</span><span class="tk-com">## frame with a counting sort (no per-cell arrays, no allocations).</span>
+<span class="ln"> 5</span><span class="tk-com">## Items of bucket h are items[cell_start[h] .. cell_start[h + 1]).</span>
+<span class="ln"> 6</span><span class="tk-com">## Different cells may share a bucket, so callers must distance-check.</span>
+<span class="ln"> 7</span>
+<span class="ln"> 8</span><span class="tk-kw">const</span> BITS := <span class="tk-num">12</span>
+<span class="ln"> 9</span><span class="tk-kw">const</span> SIZE := <span class="tk-num">1</span> &lt;&lt; BITS
+<span class="ln">10</span><span class="tk-kw">const</span> MASK := SIZE - <span class="tk-num">1</span>
+<span class="ln">11</span><span class="tk-kw">const</span> PRIME_X := <span class="tk-num">73856093</span>
+<span class="ln">12</span><span class="tk-kw">const</span> PRIME_Y := <span class="tk-num">19349663</span>
+<span class="ln">13</span>
+<span class="ln">14</span><span class="tk-kw">var</span> cell_size := <span class="tk-num">1.0</span>
+<span class="ln">15</span><span class="tk-kw">var</span> inv_cell := <span class="tk-num">1.0</span>
+<span class="ln">16</span><span class="tk-kw">var</span> cell_start := <span class="tk-ty">PackedInt32Array</span>()
+<span class="ln">17</span><span class="tk-kw">var</span> items := <span class="tk-ty">PackedInt32Array</span>()
+<span class="ln">18</span><span class="tk-kw">var</span> _bucket := <span class="tk-ty">PackedInt32Array</span>()
+<span class="ln">19</span>
+<span class="ln">20</span>
+<span class="ln">21</span><span class="tk-kw">func</span> <span class="tk-fn">_init</span>(p_cell_size: <span class="tk-ty">float</span> = <span class="tk-num">1.0</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">22</span>    cell_size = p_cell_size
+<span class="ln">23</span>    inv_cell = <span class="tk-num">1.0</span> / p_cell_size
+<span class="ln">24</span>    cell_start.<span class="tk-fn">resize</span>(SIZE + <span class="tk-num">1</span>)
+<span class="ln">25</span>
+<span class="ln">26</span>
+<span class="ln">27</span><span class="tk-kw">static</span> <span class="tk-kw">func</span> <span class="tk-fn">bucket_of</span>(cx: <span class="tk-ty">int</span>, cy: <span class="tk-ty">int</span>) -&gt; <span class="tk-ty">int</span>:
+<span class="ln">28</span>    <span class="tk-kw">return</span> ((cx * PRIME_X) ^ (cy * PRIME_Y)) &amp; MASK
+<span class="ln">29</span>
+<span class="ln">30</span>
+<span class="ln">31</span><span class="tk-kw">func</span> <span class="tk-fn">build</span>(positions: <span class="tk-ty">PackedVector2Array</span>, count: <span class="tk-ty">int</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">32</span>    <span class="tk-kw">if</span> items.<span class="tk-fn">size</span>() &lt; count:
+<span class="ln">33</span>        items.<span class="tk-fn">resize</span>(count)
+<span class="ln">34</span>        _bucket.<span class="tk-fn">resize</span>(count)
+<span class="ln">35</span>    cell_start.<span class="tk-fn">fill</span>(<span class="tk-num">0</span>)
+<span class="ln">36</span>    <span class="tk-kw">for</span> i <span class="tk-kw">in</span> count:
+<span class="ln">37</span>        <span class="tk-kw">var</span> p := positions[i]
+<span class="ln">38</span>        <span class="tk-kw">var</span> h := ((<span class="tk-ty">int</span>(<span class="tk-fn">floorf</span>(p.x * inv_cell)) * PRIME_X) ^ (<span class="tk-ty">int</span>(<span class="tk-fn">floorf</span>(p.y * inv_cell)) * PRIME_Y)) &amp; MASK
+<span class="ln">39</span>        _bucket[i] = h
+<span class="ln">40</span>        cell_start[h + <span class="tk-num">1</span>] += <span class="tk-num">1</span>
+<span class="ln">41</span>    <span class="tk-kw">for</span> h <span class="tk-kw">in</span> <span class="tk-fn">range</span>(<span class="tk-num">1</span>, SIZE + <span class="tk-num">1</span>):
+<span class="ln">42</span>        cell_start[h] += cell_start[h - <span class="tk-num">1</span>]
+<span class="ln">43</span>    <span class="tk-kw">var</span> cursor := cell_start.<span class="tk-fn">slice</span>(<span class="tk-num">0</span>, SIZE)
+<span class="ln">44</span>    <span class="tk-kw">for</span> i <span class="tk-kw">in</span> count:
+<span class="ln">45</span>        <span class="tk-kw">var</span> h := _bucket[i]
+<span class="ln">46</span>        items[cursor[h]] = i
+<span class="ln">47</span>        cursor[h] += <span class="tk-num">1</span></code></pre></div><!--/code-->
+<p>Grid dibangun ulang <b>dari nol setiap frame</b> karena semua musuh bergerak. Supaya murah, <code>build()</code> memakai <b>counting sort</b>: tidak ada Array per sel, tidak ada alokasi, hanya tiga loop di atas packed array yang dipakai ulang.</p>
+<div class="demo" data-demo="countsort"></div>
+<p>Query lingkaran mengunjungi semua sel yang disentuh kotak pembatas lingkaran (diperbesar dengan radius musuh terbesar), lalu mengecek jarak. Satu musuh bisa ditemukan dua kali kalau dua sel berbagi bucket; <code>_stamp</code> mencegah itu tanpa perlu membersihkan apa pun: setiap query punya nomor baru, dan musuh yang sudah dicap nomor itu dilewati.</p>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^## Alive enemies whose collision" data-to="^## Closest alive enemy"><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 383–411</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">383</span><span class="tk-com">## Alive enemies whose collision circle overlaps the circle (center, r).</span>
+<span class="ln">384</span><span class="tk-kw">func</span> <span class="tk-fn">query_circle</span>(center: <span class="tk-ty">Vector2</span>, r: <span class="tk-ty">float</span>) -&gt; <span class="tk-ty">PackedInt32Array</span>:
+<span class="ln">385</span>    <span class="tk-kw">var</span> <span class="tk-kw">out</span> := <span class="tk-ty">PackedInt32Array</span>()
+<span class="ln">386</span>    <span class="tk-kw">if</span> count == <span class="tk-num">0</span>:
+<span class="ln">387</span>        <span class="tk-kw">return</span> <span class="tk-kw">out</span>
+<span class="ln">388</span>    _query_id += <span class="tk-num">1</span>
+<span class="ln">389</span>    <span class="tk-kw">var</span> qid := _query_id
+<span class="ln">390</span>    <span class="tk-kw">var</span> inv := _grid.inv_cell
+<span class="ln">391</span>    <span class="tk-kw">var</span> reach := r + _max_radius
+<span class="ln">392</span>    <span class="tk-kw">var</span> x0 := <span class="tk-ty">int</span>(<span class="tk-fn">floorf</span>((center.x - reach) * inv))
+<span class="ln">393</span>    <span class="tk-kw">var</span> x1 := <span class="tk-ty">int</span>(<span class="tk-fn">floorf</span>((center.x + reach) * inv))
+<span class="ln">394</span>    <span class="tk-kw">var</span> y0 := <span class="tk-ty">int</span>(<span class="tk-fn">floorf</span>((center.y - reach) * inv))
+<span class="ln">395</span>    <span class="tk-kw">var</span> y1 := <span class="tk-ty">int</span>(<span class="tk-fn">floorf</span>((center.y + reach) * inv))
+<span class="ln">396</span>    <span class="tk-kw">var</span> starts := _grid.cell_start
+<span class="ln">397</span>    <span class="tk-kw">var</span> items := _grid.items
+<span class="ln">398</span>    <span class="tk-kw">for</span> cy <span class="tk-kw">in</span> <span class="tk-fn">range</span>(y0, y1 + <span class="tk-num">1</span>):
+<span class="ln">399</span>        <span class="tk-kw">for</span> cx <span class="tk-kw">in</span> <span class="tk-fn">range</span>(x0, x1 + <span class="tk-num">1</span>):
+<span class="ln">400</span>            <span class="tk-kw">var</span> h := ((cx * SpatialHash.PRIME_X) ^ (cy * SpatialHash.PRIME_Y)) &amp; SpatialHash.MASK
+<span class="ln">401</span>            <span class="tk-kw">for</span> s <span class="tk-kw">in</span> <span class="tk-fn">range</span>(starts[h], starts[h + <span class="tk-num">1</span>]):
+<span class="ln">402</span>                <span class="tk-kw">var</span> j := items[s]
+<span class="ln">403</span>                <span class="tk-kw">if</span> j &gt;= count <span class="tk-kw">or</span> _stamp[j] == qid:
+<span class="ln">404</span>                    <span class="tk-kw">continue</span>
+<span class="ln">405</span>                _stamp[j] = qid
+<span class="ln">406</span>                <span class="tk-kw">if</span> hp[j] &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">407</span>                    <span class="tk-kw">continue</span>
+<span class="ln">408</span>                <span class="tk-kw">var</span> rr := r + radius[j]
+<span class="ln">409</span>                <span class="tk-kw">if</span> pos[j].<span class="tk-fn">distance_squared_to</span>(center) &lt;= rr * rr:
+<span class="ln">410</span>                    <span class="tk-kw">out</span>.<span class="tk-fn">append</span>(j)
+<span class="ln">411</span>    <span class="tk-kw">return</span> <span class="tk-kw">out</span></code></pre></div><!--/code-->
+<div class="demo" data-demo="hash"></div>
+
+<h3 id="separasi">Separasi yang murah</h3>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-ref="3f048ff" data-from="^func _separate" data-to="^## Alive enemies"><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 176–219 · @3f048ff</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">176</span><span class="tk-kw">func</span> <span class="tk-fn">_separate</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">177</span>    _sep_offset = (_sep_offset + <span class="tk-num">1</span>) % separation_stride
+<span class="ln">178</span>    <span class="tk-kw">var</span> starts := _grid.cell_start
+<span class="ln">179</span>    <span class="tk-kw">var</span> items := _grid.items
+<span class="ln">180</span>    <span class="tk-kw">var</span> inv := _grid.inv_cell
+<span class="ln">181</span>    <span class="tk-kw">var</span> cap := max_neighbors_checked
+<span class="ln">182</span>    <span class="tk-kw">var</span> px := SpatialHash.PRIME_X
+<span class="ln">183</span>    <span class="tk-kw">var</span> py := SpatialHash.PRIME_Y
+<span class="ln">184</span>    <span class="tk-kw">var</span> mask := SpatialHash.MASK
+<span class="ln">185</span>    <span class="tk-kw">for</span> i <span class="tk-kw">in</span> <span class="tk-fn">range</span>(_sep_offset, count, separation_stride):
+<span class="ln">186</span>        <span class="tk-kw">var</span> p := pos[i]
+<span class="ln">187</span>        <span class="tk-kw">var</span> ri := radius[i]
+<span class="ln">188</span>        <span class="tk-kw">var</span> fx := p.x * inv
+<span class="ln">189</span>        <span class="tk-kw">var</span> fy := p.y * inv
+<span class="ln">190</span>        <span class="tk-kw">var</span> cx := <span class="tk-ty">int</span>(<span class="tk-fn">floorf</span>(fx))
+<span class="ln">191</span>        <span class="tk-kw">var</span> cy := <span class="tk-ty">int</span>(<span class="tk-fn">floorf</span>(fy))
+<span class="ln">192</span>        <span class="tk-com"># Only the 2x2 block of cells nearest to p: with cell &gt;= 2 * radius,</span>
+<span class="ln">193</span>        <span class="tk-com"># every overlapping neighbour is inside it.</span>
+<span class="ln">194</span>        <span class="tk-kw">var</span> nx := cx + (<span class="tk-num">1</span> <span class="tk-kw">if</span> fx - cx &gt;= <span class="tk-num">0.5</span> <span class="tk-kw">else</span> -<span class="tk-num">1</span>)
+<span class="ln">195</span>        <span class="tk-kw">var</span> ny := cy + (<span class="tk-num">1</span> <span class="tk-kw">if</span> fy - cy &gt;= <span class="tk-num">0.5</span> <span class="tk-kw">else</span> -<span class="tk-num">1</span>)
+<span class="ln">196</span>        <span class="tk-kw">var</span> push := <span class="tk-ty">Vector2</span>.ZERO
+<span class="ln">197</span>        <span class="tk-kw">var</span> checked := <span class="tk-num">0</span>
+<span class="ln">198</span>        <span class="tk-kw">for</span> q <span class="tk-kw">in</span> <span class="tk-num">4</span>:
+<span class="ln">199</span>            <span class="tk-kw">var</span> h := (((nx <span class="tk-kw">if</span> q &amp; <span class="tk-num">1</span> <span class="tk-kw">else</span> cx) * px) ^ ((ny <span class="tk-kw">if</span> q &amp; <span class="tk-num">2</span> <span class="tk-kw">else</span> cy) * py)) &amp; mask
+<span class="ln">200</span>            <span class="tk-kw">for</span> s <span class="tk-kw">in</span> <span class="tk-fn">range</span>(starts[h], starts[h + <span class="tk-num">1</span>]):
+<span class="ln">201</span>                <span class="tk-kw">var</span> j := items[s]
+<span class="ln">202</span>                <span class="tk-kw">if</span> j == i:
+<span class="ln">203</span>                    <span class="tk-kw">continue</span>
+<span class="ln">204</span>                <span class="tk-kw">var</span> dd := p - pos[j]
+<span class="ln">205</span>                <span class="tk-kw">var</span> r := ri + radius[j]
+<span class="ln">206</span>                <span class="tk-kw">var</span> d2 := dd.<span class="tk-fn">length_squared</span>()
+<span class="ln">207</span>                <span class="tk-kw">if</span> d2 &lt; r * r:
+<span class="ln">208</span>                    <span class="tk-kw">if</span> d2 &gt; <span class="tk-num">0.000001</span>:
+<span class="ln">209</span>                        <span class="tk-kw">var</span> dist := <span class="tk-fn">sqrt</span>(d2)
+<span class="ln">210</span>                        push += dd * ((r - dist) / dist)
+<span class="ln">211</span>                    <span class="tk-kw">else</span>:
+<span class="ln">212</span>                        push.x += <span class="tk-fn">randf</span>() - <span class="tk-num">0.5</span>
+<span class="ln">213</span>                checked += <span class="tk-num">1</span>
+<span class="ln">214</span>                <span class="tk-kw">if</span> checked &gt;= cap:
+<span class="ln">215</span>                    <span class="tk-kw">break</span>
+<span class="ln">216</span>            <span class="tk-kw">if</span> checked &gt;= cap:
+<span class="ln">217</span>                <span class="tk-kw">break</span>
+<span class="ln">218</span>        <span class="tk-kw">if</span> push != <span class="tk-ty">Vector2</span>.ZERO:
+<span class="ln">219</span>            pos[i] = p + (push * <span class="tk-num">0.5</span>).<span class="tk-fn">limit_length</span>(<span class="tk-num">0.3</span>)</code></pre></div><!--/code-->
+<p>Tiga trik membuat separasi muat dalam anggaran frame:</p>
+<ol>
+  <li><b>Hanya blok 2×2 sel terdekat.</b> Karena sel (1,2) ≥ 2× radius musuh, semua tetangga yang mungkin bertumpuk pasti ada di 2×2 sel di sekitar titik, bukan 3×3. Sel kedua dipilih dari sisi mana titik berada di dalam selnya (<code>fx - cx &gt;= 0.5</code>).</li>
+  <li><b>Maksimal 12 tetangga.</b> Di tengah gerombolan padat, mengecek 12 sudah cukup untuk dorongan yang meyakinkan.</li>
+  <li><b>Bergiliran (stagger).</b> <code>separation_stride = 2</code>: frame ganjil memproses musuh ganjil, frame genap yang genap. Separasi adalah efek visual yang lembut; setengah frekuensi tidak terlihat bedanya, biayanya setengah.</li>
+</ol>
+<p>Dorongan dibatasi <code>limit_length(0.3)</code> per frame supaya musuh tidak "meledak" keluar saat banyak yang bertumpuk sekaligus.</p>
+
+<h2 id="aura">Langkah 9: senjata pertama, Holy Aura</h2>
+<p>Senjata adalah node anak <code>Player/Weapons</code>, jadi otomatis ikut bergerak bersama pemain. Kelas dasar <code>Weapon</code> di Fase 1 nyaris kosong:</p>
+<div class="code" data-src="weapons/weapon.gd" data-ref="3f048ff"><div class="file"><span><b>weapons/weapon.gd</b> · baris 1–11 · @3f048ff</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> Weapon
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">Node3D</span>
+<span class="ln"> 3</span><span class="tk-com">## Base class for weapon behaviours. Weapons are children of Player/Weapons,</span>
+<span class="ln"> 4</span><span class="tk-com">## so they follow the player. Game calls tick() once per frame in a fixed order.</span>
+<span class="ln"> 5</span>
+<span class="ln"> 6</span><span class="tk-kw">var</span> data: WeaponData
+<span class="ln"> 7</span><span class="tk-kw">var</span> level := <span class="tk-num">1</span>
+<span class="ln"> 8</span>
+<span class="ln"> 9</span>
+<span class="ln">10</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(_dt: <span class="tk-ty">float</span>, _game: Game) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">11</span>    <span class="tk-kw">pass</span></code></pre></div><!--/code-->
+<p>Statistiknya di <code>WeaponData</code> (Resource), perilakunya di scene + skrip turunan <code>Weapon</code>. Scene <code>weapons/aura/aura_weapon.tscn</code>: root Node3D dengan skrip aura, child <code>Visual</code> (MeshInstance3D, PlaneMesh 2×2 rebah, <code>material_override</code> = ShaderMaterial dengan <code>shaders/aura.gdshader</code>).</p>
+<div class="code" data-src="weapons/aura/aura_weapon.gd" data-ref="3f048ff"><div class="file"><span><b>weapons/aura/aura_weapon.gd</b> · baris 1–32 · @3f048ff</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">extends</span> Weapon
+<span class="ln"> 2</span><span class="tk-com">## Damages every enemy inside a circle around the player on a fixed tick,</span>
+<span class="ln"> 3</span><span class="tk-com">## pushing them outward.</span>
+<span class="ln"> 4</span>
+<span class="ln"> 5</span><span class="tk-kw">var</span> _timer := <span class="tk-num">0.0</span>
+<span class="ln"> 6</span><span class="tk-kw">var</span> _pulse := <span class="tk-num">0.0</span>
+<span class="ln"> 7</span><span class="tk-kw">var</span> _shown_area := -<span class="tk-num">1.0</span>
+<span class="ln"> 8</span>
+<span class="ln"> 9</span><span class="tk-ann">@onready</span> <span class="tk-kw">var</span> visual: MeshInstance3D = $Visual
+<span class="ln">10</span><span class="tk-ann">@onready</span> <span class="tk-kw">var</span> _mat: <span class="tk-ty">ShaderMaterial</span> = visual.material_override
+<span class="ln">11</span>
+<span class="ln">12</span>
+<span class="ln">13</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(dt: <span class="tk-ty">float</span>, game: Game) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">14</span>    <span class="tk-kw">var</span> r := data.area
+<span class="ln">15</span>    <span class="tk-kw">if</span> r != _shown_area:
+<span class="ln">16</span>        _shown_area = r
+<span class="ln">17</span>        visual.scale = <span class="tk-ty">Vector3</span>(r, <span class="tk-num">1.0</span>, r)
+<span class="ln">18</span>        _mat.<span class="tk-fn">set_shader_parameter</span>(<span class="tk-str">&quot;pixel_steps&quot;</span>, r * <span class="tk-num">2.0</span> * <span class="tk-num">16.0</span>)
+<span class="ln">19</span>
+<span class="ln">20</span>    _pulse = <span class="tk-fn">maxf</span>(<span class="tk-num">0.0</span>, _pulse - dt * <span class="tk-num">4.0</span>)
+<span class="ln">21</span>    _timer -= dt
+<span class="ln">22</span>    <span class="tk-kw">if</span> _timer &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">23</span>        _timer += data.cooldown
+<span class="ln">24</span>        <span class="tk-kw">var</span> origin := game.player.pos2
+<span class="ln">25</span>        <span class="tk-kw">var</span> swarm := game.swarm
+<span class="ln">26</span>        <span class="tk-kw">var</span> hits := swarm.<span class="tk-fn">query_circle</span>(origin, r)
+<span class="ln">27</span>        <span class="tk-kw">for</span> i <span class="tk-kw">in</span> hits:
+<span class="ln">28</span>            <span class="tk-kw">var</span> dir := (swarm.pos[i] - origin).<span class="tk-fn">normalized</span>()
+<span class="ln">29</span>            swarm.<span class="tk-fn">damage_enemy</span>(i, data.damage, dir * data.knockback)
+<span class="ln">30</span>        <span class="tk-kw">if</span> <span class="tk-kw">not</span> hits.<span class="tk-fn">is_empty</span>():
+<span class="ln">31</span>            _pulse = <span class="tk-num">1.0</span>
+<span class="ln">32</span>    _mat.<span class="tk-fn">set_shader_parameter</span>(<span class="tk-str">&quot;pulse&quot;</span>, _pulse)</code></pre></div><!--/code-->
+<p>Damage tidak dicek tiap frame. Aura menunggu timer, lalu satu <code>query_circle</code> mengambil semua musuh di radius. Setiap hit melewati satu fungsi, <code>damage_enemy</code>, yang mengurangi HP, menyalakan hit flash, dan menambah knockback. Semua senjata yang datang kemudian memakai jalur yang sama.</p>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-ref="3f048ff" data-from="^func damage_enemy" data-to="^func collide_player"><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 254–267 · @3f048ff</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">254</span><span class="tk-kw">func</span> <span class="tk-fn">damage_enemy</span>(i: <span class="tk-ty">int</span>, amount: <span class="tk-ty">float</span>, knockback: <span class="tk-ty">Vector2</span> = <span class="tk-ty">Vector2</span>.ZERO) -&gt; <span class="tk-ty">bool</span>:
+<span class="ln">255</span>    <span class="tk-kw">if</span> hp[i] &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">256</span>        <span class="tk-kw">return</span> <span class="tk-kw">false</span>
+<span class="ln">257</span>    hp[i] -= amount
+<span class="ln">258</span>    flash[i] = <span class="tk-num">1.0</span>
+<span class="ln">259</span>    knock[i] += knockback * (<span class="tk-num">1.0</span> - kb_resist[i])
+<span class="ln">260</span>    <span class="tk-kw">if</span> hp[i] &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">261</span>        _dead.<span class="tk-fn">append</span>(i)
+<span class="ln">262</span>        <span class="tk-kw">return</span> <span class="tk-kw">true</span>
+<span class="ln">263</span>    <span class="tk-kw">return</span> <span class="tk-kw">false</span>
+<span class="ln">264</span>
+<span class="ln">265</span>
+<span class="ln">266</span><span class="tk-com">## Push touching enemies out of the player&#x27;s circle; returns the highest</span>
+<span class="ln">267</span><span class="tk-com">## contact damage among them (0 if none).</span></code></pre></div><!--/code-->
+<div class="demo" data-demo="aura"></div>
+<p>Shader aura menggambar cakram dengan tepi berkuantisasi piksel (<code>pixel_steps = radius × 2 × 16</code>, jadi resolusi cakram cocok dengan 16 px per unit), cincin rune berputar, dan riak. <code>blend_add</code> + warna di atas 1 membuat glow WorldEnvironment menangkapnya.</p>
+<div class="code" data-src="shaders/aura.gdshader"><div class="file"><span><b>shaders/aura.gdshader</b> · baris 1–28</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-com">// Ground aura disc: pixel-quantised rim, rotating rune ring, outward ripples.</span>
+<span class="ln"> 2</span><span class="tk-com">// Drawn on a 2x2 PlaneMesh scaled by the aura radius.</span>
+<span class="ln"> 3</span><span class="tk-kw">shader_type</span> spatial;
+<span class="ln"> 4</span><span class="tk-kw">render_mode</span> unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
+<span class="ln"> 5</span>
+<span class="ln"> 6</span><span class="tk-kw">uniform</span> <span class="tk-ty">vec4</span> color : source_color = <span class="tk-ty">vec4</span>(<span class="tk-num">0.35</span>, <span class="tk-num">0.8</span>, <span class="tk-num">1.0</span>, <span class="tk-num">1.0</span>);
+<span class="ln"> 7</span><span class="tk-kw">uniform</span> <span class="tk-ty">float</span> intensity = <span class="tk-num">1.4</span>;
+<span class="ln"> 8</span><span class="tk-kw">uniform</span> <span class="tk-ty">float</span> pulse = <span class="tk-num">0.0</span>;
+<span class="ln"> 9</span><span class="tk-kw">uniform</span> <span class="tk-ty">float</span> pixel_steps = <span class="tk-num">64.0</span>;
+<span class="ln">10</span><span class="tk-kw">uniform</span> <span class="tk-ty">float</span> rune_count = <span class="tk-num">14.0</span>;
+<span class="ln">11</span>
+<span class="ln">12</span><span class="tk-kw">void</span> <span class="tk-fn">fragment</span>() {
+<span class="ln">13</span>    <span class="tk-ty">vec2</span> uv = (<span class="tk-fn">floor</span>(UV * pixel_steps) + <span class="tk-num">0.5</span>) / pixel_steps;
+<span class="ln">14</span>    <span class="tk-ty">vec2</span> p = uv * <span class="tk-num">2.0</span> - <span class="tk-num">1.0</span>;
+<span class="ln">15</span>    <span class="tk-ty">float</span> r = <span class="tk-fn">length</span>(p);
+<span class="ln">16</span>    <span class="tk-kw">if</span> (r &gt; <span class="tk-num">1.0</span>) {
+<span class="ln">17</span>        <span class="tk-kw">discard</span>;
+<span class="ln">18</span>    }
+<span class="ln">19</span>    <span class="tk-ty">float</span> ang = <span class="tk-fn">atan</span>(p.y, p.x) / <span class="tk-num">6.28318</span> + <span class="tk-num">0.5</span>;
+<span class="ln">20</span>    <span class="tk-ty">float</span> rim = <span class="tk-fn">smoothstep</span>(<span class="tk-num">0.86</span>, <span class="tk-num">0.94</span>, r);
+<span class="ln">21</span>    <span class="tk-ty">float</span> runes = <span class="tk-fn">step</span>(<span class="tk-num">0.55</span>, <span class="tk-fn">fract</span>(ang * rune_count + TIME * <span class="tk-num">0.35</span>))
+<span class="ln">22</span>        * <span class="tk-fn">step</span>(<span class="tk-num">0.66</span>, r) * (<span class="tk-num">1.0</span> - <span class="tk-fn">step</span>(<span class="tk-num">0.74</span>, r));
+<span class="ln">23</span>    <span class="tk-ty">float</span> ripple = <span class="tk-fn">step</span>(<span class="tk-num">0.82</span>, <span class="tk-fn">fract</span>(r * <span class="tk-num">3.0</span> - TIME * <span class="tk-num">0.8</span>)) * <span class="tk-num">0.35</span>;
+<span class="ln">24</span>    <span class="tk-ty">float</span> fill = <span class="tk-num">0.08</span> + <span class="tk-num">0.18</span> * r * r;
+<span class="ln">25</span>    <span class="tk-ty">float</span> a = rim * <span class="tk-num">0.9</span> + runes * <span class="tk-num">0.55</span> + ripple * r + fill + pulse * <span class="tk-num">0.35</span> * (<span class="tk-num">1.0</span> - r * <span class="tk-num">0.5</span>);
+<span class="ln">26</span>    ALBEDO = color.rgb * intensity;
+<span class="ln">27</span>    ALPHA = <span class="tk-fn">clamp</span>(a, <span class="tk-num">0.0</span>, <span class="tk-num">1.0</span>);
+<span class="ln">28</span>}</code></pre></div><!--/code-->
+
+<h2 id="director">Langkah 10: SpawnDirector sederhana</h2>
+<p>Fase 1 memakai laju spawn yang naik linear terhadap waktu. Laju dihitung dalam spawn per detik dan dikumpulkan di <b>akumulator</b>: setiap frame <code>_acc += laju · dt</code>, dan selama akumulator ≥ 1 kita spawn satu cluster lalu menguranginya. Dengan cara ini 2,5 spawn/detik benar-benar menghasilkan 2,5 per detik, berapa pun FPS-nya.</p>
+<div class="code" data-src="enemies/spawn_director.gd" data-ref="3f048ff" data-from="^@export var enemy_pool" data-to="^## Debug/stress"><div class="file"><span><b>enemies/spawn_director.gd</b> · baris 6–37 · @3f048ff</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 6</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> enemy_pool: <span class="tk-ty">Array</span>[EnemyData] = []
+<span class="ln"> 7</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> spawns_per_second := <span class="tk-num">2.0</span>
+<span class="ln"> 8</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> spawns_per_second_per_minute := <span class="tk-num">6.0</span>
+<span class="ln"> 9</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> hp_growth_per_minute := <span class="tk-num">0.1</span>
+<span class="ln">10</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> max_alive := <span class="tk-num">1500</span>
+<span class="ln">11</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> spawn_radius := <span class="tk-num">20.0</span>
+<span class="ln">12</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> cluster_min := <span class="tk-num">3</span>
+<span class="ln">13</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> cluster_max := <span class="tk-num">7</span>
+<span class="ln">14</span>
+<span class="ln">15</span><span class="tk-kw">var</span> _acc := <span class="tk-num">0.0</span>
+<span class="ln">16</span>
+<span class="ln">17</span>
+<span class="ln">18</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(dt: <span class="tk-ty">float</span>, game: Game) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">19</span>    <span class="tk-kw">if</span> enemy_pool.<span class="tk-fn">is_empty</span>():
+<span class="ln">20</span>        <span class="tk-kw">return</span>
+<span class="ln">21</span>    <span class="tk-kw">var</span> minutes := game.elapsed / <span class="tk-num">60.0</span>
+<span class="ln">22</span>    _acc += (spawns_per_second + spawns_per_second_per_minute * minutes) * dt
+<span class="ln">23</span>    <span class="tk-kw">var</span> hp_mult := <span class="tk-num">1.0</span> + hp_growth_per_minute * minutes
+<span class="ln">24</span>    <span class="tk-kw">while</span> _acc &gt;= <span class="tk-num">1.0</span>:
+<span class="ln">25</span>        <span class="tk-kw">if</span> game.swarm.count &gt;= max_alive:
+<span class="ln">26</span>            _acc = <span class="tk-num">0.0</span>
+<span class="ln">27</span>            <span class="tk-kw">return</span>
+<span class="ln">28</span>        <span class="tk-kw">var</span> n := <span class="tk-fn">randi_range</span>(cluster_min, cluster_max)
+<span class="ln">29</span>        _acc -= n
+<span class="ln">30</span>        <span class="tk-fn">spawn_cluster</span>(game, enemy_pool.<span class="tk-fn">pick_random</span>(), n, <span class="tk-fn">randf</span>() * TAU, hp_mult)
+<span class="ln">31</span>
+<span class="ln">32</span>
+<span class="ln">33</span><span class="tk-kw">func</span> <span class="tk-fn">spawn_cluster</span>(game: Game, data: EnemyData, n: <span class="tk-ty">int</span>, angle: <span class="tk-ty">float</span>, hp_mult: <span class="tk-ty">float</span> = <span class="tk-num">1.0</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">34</span>    <span class="tk-kw">var</span> center := game.player.pos2 + <span class="tk-ty">Vector2</span>.<span class="tk-fn">from_angle</span>(angle) * spawn_radius
+<span class="ln">35</span>    <span class="tk-kw">for</span> k <span class="tk-kw">in</span> n:
+<span class="ln">36</span>        <span class="tk-kw">var</span> jitter := <span class="tk-ty">Vector2</span>(<span class="tk-fn">randf_range</span>(-<span class="tk-num">1.5</span>, <span class="tk-num">1.5</span>), <span class="tk-fn">randf_range</span>(-<span class="tk-num">1.5</span>, <span class="tk-num">1.5</span>))
+<span class="ln">37</span>        game.swarm.<span class="tk-fn">spawn</span>(data, center + jitter, hp_mult)</code></pre></div><!--/code-->
+<p>Musuh muncul berkelompok (3–7) di cincin radius 20, sedikit di luar layar (layar setinggi 13 unit). Fase 5 mengganti ini dengan tabel wave berbasis data.</p>
+
+<h2 id="game-process">Langkah 11: Game memegang urutan</h2>
+<p>Terakhir, tempel <code>core/game.gd</code> di root <code>Main</code>. Inilah versi Fase 1 lengkap: perhatikan bahwa <b>tidak ada sistem lain yang punya <code>_process</code></b>.</p>
+<div class="code" data-src="core/game.gd" data-ref="3f048ff" data-from="^func _process" data-to="^func _unhandled_input"><div class="file"><span><b>core/game.gd</b> · baris 34–60 · @3f048ff</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">34</span><span class="tk-kw">func</span> <span class="tk-fn">_process</span>(delta: <span class="tk-ty">float</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">35</span>    <span class="tk-kw">if</span> <span class="tk-fn">get_tree</span>().paused:
+<span class="ln">36</span>        <span class="tk-kw">return</span>
+<span class="ln">37</span>    <span class="tk-kw">var</span> dt := <span class="tk-fn">minf</span>(delta, <span class="tk-num">1.0</span> / <span class="tk-num">20.0</span>)
+<span class="ln">38</span>    elapsed += dt
+<span class="ln">39</span>
+<span class="ln">40</span>    player.<span class="tk-fn">tick</span>(dt)
+<span class="ln">41</span>    swarm.<span class="tk-fn">tick</span>(dt, player.pos2)
+<span class="ln">42</span>
+<span class="ln">43</span>    <span class="tk-kw">var</span> contact := swarm.<span class="tk-fn">collide_player</span>(player.pos2, player.radius)
+<span class="ln">44</span>    <span class="tk-kw">if</span> contact &gt; <span class="tk-num">0.0</span> <span class="tk-kw">and</span> <span class="tk-kw">not</span> player.is_dead:
+<span class="ln">45</span>        <span class="tk-kw">var</span> before := player.hp
+<span class="ln">46</span>        player.<span class="tk-fn">take_damage</span>(contact)
+<span class="ln">47</span>        <span class="tk-kw">if</span> player.hp &lt; before:
+<span class="ln">48</span>            camera_rig.<span class="tk-fn">add_shake</span>(contact_shake)
+<span class="ln">49</span>
+<span class="ln">50</span>    <span class="tk-kw">for</span> w <span class="tk-kw">in</span> player.weapons:
+<span class="ln">51</span>        w.<span class="tk-fn">tick</span>(dt, <span class="tk-kw">self</span>)
+<span class="ln">52</span>
+<span class="ln">53</span>    swarm.<span class="tk-fn">flush_dead</span>()
+<span class="ln">54</span>    director.<span class="tk-fn">tick</span>(dt, <span class="tk-kw">self</span>)
+<span class="ln">55</span>    swarm.<span class="tk-fn">upload</span>()
+<span class="ln">56</span>
+<span class="ln">57</span>    camera_rig.<span class="tk-fn">tick</span>(dt, player.global_position)
+<span class="ln">58</span>    ground.position = <span class="tk-ty">Vector3</span>(player.pos2.x, <span class="tk-num">0.0</span>, player.pos2.y)
+<span class="ln">59</span>    decor.<span class="tk-fn">tick</span>(player.pos2)
+<span class="ln">60</span>    hud.<span class="tk-fn">refresh</span>(<span class="tk-kw">self</span>)</code></pre></div><!--/code-->
+<div class="callout"><span class="tag">Konsep · kenapa satu pemilik urutan</span><p>Kalau tiap node punya <code>_process</code>, urutan pemanggilannya ditentukan posisi di pohon scene. Memindahkan satu node di editor bisa membuat senjata membaca posisi musuh frame lalu, atau gem jatuh di posisi yang sudah diganti slot lain. Dengan satu daftar di <code>Game._process</code>, urutannya terbaca dari atas ke bawah, bisa diuji, dan perubahan disengaja. Bonus: pause cukup satu baris (<code>if get_tree().paused: return</code>), dan hit-stop di Fase 6 cukup melewati semua kecuali kamera.</p></div>
+<p><code>dt</code> dibatasi <code>1/20</code> detik. Kalau game tersendat (misalnya jendela diseret), satu frame panjang tidak membuat musuh melompat menembus pemain.</p>
+
+<h2 id="decor">Dekorasi tak berujung</h2>
+<p><code>DecorField</code> menggambar rumput, batu, jamur, dan nisan dengan teknik yang sama (MultiMesh + shader billboard), tapi hanya menulis ulang buffer saat pemain pindah petak 40×40. Satu petak acak diulang 3×3 di sekitar pemain.</p>
+<div class="code" data-src="world/decor_field.gd" data-from="^func tick"><div class="file"><span><b>world/decor_field.gd</b> · baris 54–69</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">54</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(player_pos: <span class="tk-ty">Vector2</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">55</span>    <span class="tk-kw">var</span> t := <span class="tk-fn">Vector2i</span>(<span class="tk-fn">floori</span>(player_pos.x / tile_size), <span class="tk-fn">floori</span>(player_pos.y / tile_size))
+<span class="ln">56</span>    <span class="tk-kw">if</span> t == _tile:
+<span class="ln">57</span>        <span class="tk-kw">return</span>
+<span class="ln">58</span>    _tile = t
+<span class="ln">59</span>    <span class="tk-kw">var</span> basis := Basis.<span class="tk-fn">from_scale</span>(<span class="tk-ty">Vector3</span>.ONE * CELL_WORLD)
+<span class="ln">60</span>    <span class="tk-kw">var</span> k := <span class="tk-num">0</span>
+<span class="ln">61</span>    <span class="tk-kw">for</span> ty <span class="tk-kw">in</span> <span class="tk-fn">range</span>(-<span class="tk-num">1</span>, <span class="tk-num">2</span>):
+<span class="ln">62</span>        <span class="tk-kw">for</span> tx <span class="tk-kw">in</span> <span class="tk-fn">range</span>(-<span class="tk-num">1</span>, <span class="tk-num">2</span>):
+<span class="ln">63</span>            <span class="tk-kw">var</span> ox := (t.x + tx) * tile_size
+<span class="ln">64</span>            <span class="tk-kw">var</span> oz := (t.y + ty) * tile_size
+<span class="ln">65</span>            <span class="tk-kw">for</span> b <span class="tk-kw">in</span> per_tile:
+<span class="ln">66</span>                <span class="tk-kw">var</span> p := _base[b]
+<span class="ln">67</span>                _mm.<span class="tk-fn">set_instance_transform</span>(k, <span class="tk-ty">Transform3D</span>(basis, <span class="tk-ty">Vector3</span>(ox + p.x, <span class="tk-num">0.0</span>, oz + p.y)))
+<span class="ln">68</span>                _mm.<span class="tk-fn">set_instance_custom_data</span>(k, <span class="tk-ty">Color</span>(p.z, _flip[b], <span class="tk-num">0.0</span>, <span class="tk-num">0.0</span>))
+<span class="ln">69</span>                k += <span class="tk-num">1</span></code></pre></div><!--/code-->
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li>Tekan <kbd>F5</kbd>. Pemain berjalan dengan WASD, kamera mengikuti dengan halus, rumput tidak pernah habis.</li>
+    <li>Musuh muncul dari luar layar, mengejar, tidak menumpuk jadi satu titik, berkedip putih saat kena aura, dan terdorong keluar.</li>
+    <li>Label debug menunjukkan FPS dan jumlah musuh. <kbd>F1</kbd> menambah 500 musuh. Di Fase 1 game ini tetap di atas 60 FPS dengan lebih dari 1000 musuh di PC desktop biasa.</li>
+  </ul>
+</div>
+<figure><img src="assets/img/stress.webp" alt="Stress test HEAD: lebih dari 1000 musuh di sekitar pemain, panel debug menunjukkan jumlah musuh" width="1280" height="720" loading="lazy"><figcaption>Stress test di HEAD (bukan Fase 1): 1000–1270 musuh hidup, vsync mati, terukur 66–116 FPS dalam editor.</figcaption></figure>
+
+<div class="mistakes"><span class="tag">Kesalahan umum &amp; cara debug</span>
+  <ul>
+    <li><b>Musuh tidak terlihat sama sekali.</b> Cek urutan: <code>instance_count</code> sudah diisi sebelum <code>multimesh_set_buffer</code>? <code>visible_instance_count</code> diisi <code>n</code>? Ukuran buffer harus persis <code>instance_count × 16</code>; kalau tidak, Godot mencetak error di Output.</li>
+    <li><b>Semua musuh menumpuk di titik (0,0) atau gepeng.</b> Indeks buffer salah. Posisi ada di indeks 3 dan 11, skala di 0, 5, 10. Pakai demo buffer di atas untuk mengecek.</li>
+    <li><b>Musuh hilang saat kamera bergerak jauh.</b> Lupa <code>custom_aabb</code>: Godot meng-<i>cull</i> MultiMesh berdasarkan AABB lama.</li>
+    <li><b>Sprite terlihat pendek/gepeng.</b> <code>y_stretch</code> atau scale Y Sprite3D tidak 1,55.</li>
+    <li><b>FPS jatuh di 300 musuh.</b> Biasanya ada pembacaan Resource atau alokasi di loop panas (mis. <code>Array</code> baru per musuh). Buka <span class="menu-path">Debugger → Profiler</span>, jalankan, lihat fungsi dengan Self time terbesar.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Ubah <code>separation_stride</code> ke 1 dan 4 di Inspector EnemySwarm. Bandingkan FPS dengan 1500 musuh dan perhatikan apakah gerombolan terlihat berbeda.</li>
+    <li>Ubah <code>pitch_degrees</code> CameraRig ke 35. Sprite akan terlihat terlalu tinggi; hitung <code>y_stretch</code> yang benar (<code>1 / cos 35°</code>) dan terapkan di EnemySwarm dan Sprite3D pemain.</li>
+    <li>Buat <code>data/enemies/fast_ghoul.tres</code> (kecepatan 4, HP 6) dan masukkan ke <code>enemy_pool</code> SpawnDirector. Tanpa menyentuh kode.</li>
+  </ol>
+</div>
+<nav class="pager" id="pager" aria-label="Halaman sebelumnya dan berikutnya"></nav>
+</article>
+</main>
+</div>
+<script src="assets/search-index.js?v=f641e385"></script>
+<script src="assets/site.js?v=3fa56380"></script>
+<script src="assets/demos.js?v=4520dcc1"></script>
+<script src="assets/demos-swarm.js?v=36474919"></script>
+<script src="assets/demos-systems.js?v=9a72b9ac"></script>
+</body>
+</html>

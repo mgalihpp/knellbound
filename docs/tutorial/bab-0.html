@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Bab 0 · Persiapan</title>
+<meta name="description" content="Install Godot 4.7, buat proyek kosong, atur folder, Input Map, window, filter nearest, Python dan Pillow untuk generator sprite.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Pixelify+Sans:wght@500;600&display=swap">
+<link rel="stylesheet" href="assets/style.css?v=5213953b">
+<script>try{var t=JSON.parse(localStorage.getItem("kb-theme"));if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="bab-0">
+<header class="topbar">
+<button id="menu-btn" class="icon-btn" type="button" aria-label="Buka daftar bab"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Bab</button>
+<a class="brand" href="index.html">Knellbound <span>dari Nol</span></a>
+<span class="spacer"></span>
+<div class="search-wrap"><input id="search" type="search" placeholder="Cari… (tekan /)" aria-label="Cari di panduan" autocomplete="off"><div id="search-results" hidden></div></div>
+<button id="theme-btn" class="icon-btn" type="button" aria-label="Ganti tema"></button>
+<div class="progress-line"></div>
+</header>
+<div class="layout">
+<nav class="sidebar" id="sidebar" aria-label="Daftar bab"></nav>
+<main>
+<article class="article">
+<span class="eyebrow">Bab 0</span>
+<h1>Persiapan</h1>
+<p class="lede">Sebelum menulis kode game, siapkan proyek yang benar: struktur folder, pengaturan window, peta input, dan alat pembuat sprite. Kesalahan di sini (mis. filter tekstur) baru terasa jauh di belakang, jadi kerjakan dengan teliti.</p>
+
+<div class="goal"><span class="tag">Tujuan</span>Proyek Godot kosong bernama Knellbound yang bisa dijalankan, dengan folder, Input Map, dan pengaturan render yang sama dengan repo, plus <code>tools/gen_sprites.py</code> yang bisa menulis PNG ke <code>art/</code>.</div>
+
+<h2 id="install">Install Godot 4.7 dan Python</h2>
+<ol class="steps">
+  <li>Unduh <b>Godot 4.7.x (Standard, bukan .NET)</b> dari <a href="https://godotengine.org/download" target="_blank" rel="noopener">godotengine.org/download</a>. Proyek ini memakai GDScript saja. Di Windows, file <code>Godot_v4.7.2-stable_win64.exe</code> bisa langsung dijalankan; versi <code>_console.exe</code> berguna karena membuka jendela terminal yang menampilkan <code>print()</code> dan error.</li>
+  <li>Install <b>Python 3.10+</b> dari <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">python.org</a>, lalu Pillow (pustaka gambar) lewat terminal: <code>pip install pillow</code>. Hanya generator sprite yang butuh Pillow; <code>tools/gen_audio.py</code> cukup pustaka standar.</li>
+  <li>Install <b>git</b>. Panduan ini sering meminta kamu membandingkan kode dengan commit fase.</li>
+</ol>
+
+<h2 id="proyek-baru">Membuat proyek kosong</h2>
+<ol class="steps">
+  <li>Buka Godot. Di Project Manager klik <span class="menu-path">+ Create</span>.</li>
+  <li>Project Name: <code>Knellbound</code>. Pilih folder kosong. Renderer: <b>Forward+</b> (proyek memakai shader spatial unshaded dan glow; Forward+ adalah renderer desktop default). Version control: Git.</li>
+  <li>Klik <span class="menu-path">Create &amp; Edit</span>. Godot membuat <code>project.godot</code>, <code>icon.svg</code>, dan folder tersembunyi <code>.godot/</code> (cache impor, jangan di-commit).</li>
+</ol>
+<div class="callout"><span class="tag">Konsep · project.godot</span>Semua yang kamu atur di <span class="menu-path">Project → Project Settings</span> disimpan sebagai teks di <code>project.godot</code>. Itu sebabnya repo bisa menunjukkan pengaturan persisnya, dan diff git memperlihatkan kapan sebuah pengaturan berubah. Mengeditnya dengan tangan boleh, tapi lebih aman lewat editor.</div>
+
+<h2 id="folder">Struktur folder</h2>
+<p>Buat folder berikut di panel FileSystem (klik kanan <code>res://</code> → <span class="menu-path">Create New → Folder</span>). Tidak semua langsung terisi; yang penting kamu tahu di mana tiap jenis file tinggal.</p>
+<div class="tree">res://
+├─ art/          sprites/ tiles/ icons/ ui/   <span class="t-type">← ditulis oleh tools/gen_sprites.py</span>
+├─ audio/        sfx/ bgm/                    <span class="t-type">← ditulis oleh tools/gen_audio.py (Fase 8)</span>
+├─ autoload/     singleton global (Fase 7–8)
+├─ characters/   character_data.gd
+├─ core/         game.gd, spatial_hash.gd, camera_rig.gd, stats.gd, …
+├─ data/         <span class="t-script">semua konten .tres</span>: characters/ enemies/ weapons/ passives/ waves/ …
+├─ enemies/      enemy_swarm.gd, spawn_director.gd, …
+├─ fx/  pickups/  passives/  meta/  world/
+├─ player/       player.gd, player.tscn
+├─ scenes/       main.tscn (run), nanti title.tscn, character_select.tscn, shop.tscn
+├─ shaders/      sprite_billboard.gdshader, blob_shadow.gdshader, aura.gdshader, …
+├─ tools/        gen_sprites.py, gen_audio.py, <span class="t-new">.gdignore</span>
+├─ ui/           hud, layar level up, tema
+└─ weapons/      weapon.gd, projectile_field.gd, aura/ knives/ orbit/ vial/ cross/</div>
+<p>Aturannya: <b>skrip dikelompokkan menurut fitur</b> (enemies/, weapons/), sedangkan <b>data konten</b> (.tres) dikumpulkan di <code>data/</code>. Desainer bisa menyeimbangkan game hanya dengan membuka <code>data/</code> di Inspector.</p>
+<div class="callout"><span class="tag">Konsep · .gdignore</span>File kosong bernama <code>.gdignore</code> membuat Godot mengabaikan folder itu: tidak diimpor, tidak muncul di FileSystem. Folder <code>tools/</code> berisi skrip Python, jadi diberi <code>.gdignore</code>. Panduan ini sendiri (<code>docs/tutorial/</code>) juga punya <code>.gdignore</code> supaya gambar WebP-nya tidak diimpor sebagai tekstur.</div>
+
+<h2 id="pengaturan">Pengaturan proyek</h2>
+<p>Buka <span class="menu-path">Project → Project Settings</span>. Aktifkan <b>Advanced Settings</b> (toggle kanan atas) supaya semua opsi tampil.</p>
+<h3 id="window">Window dan stretch</h3>
+<ol class="steps">
+  <li><span class="menu-path">Display → Window → Size</span>: Viewport Width <code>1280</code>, Height <code>720</code>.</li>
+  <li><span class="menu-path">Display → Window → Stretch</span>: Mode <code>canvas_items</code>, Aspect <code>expand</code>.</li>
+</ol>
+<p><code>canvas_items</code> berarti UI dirancang di 1280×720 lalu diskalakan ke ukuran jendela sebenarnya; <code>expand</code> berarti layar yang lebih lebar menampilkan area lebih banyak, bukan bilah hitam. Dunia 3D tidak terpengaruh stretch karena ukurannya diatur oleh kamera orthographic (Bab 1).</p>
+<h3 id="filter">Filter tekstur nearest</h3>
+<p><span class="menu-path">Rendering → Textures → Canvas Textures → Default Texture Filter</span> = <code>Nearest</code>. Tanpa ini, ikon UI pixel art jadi buram karena diinterpolasi linear. Pengaturan ini hanya berlaku untuk node 2D/UI. Di 3D, filter diatur per material: <code>Sprite3D.texture_filter = Nearest</code> dan di shader <code>uniform sampler2D sheet : filter_nearest</code>. Kamu akan melihat keduanya di Bab 1.</p>
+<div class="code" data-src="project.godot" data-from="^\[display\]" data-to="^\[editor_plugins\]|^\[gui\]"><div class="file"><span><b>project.godot</b> · baris 26–31</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">26</span>[display]
+<span class="ln">27</span>
+<span class="ln">28</span>window/size/viewport_width=<span class="tk-num">1280</span>
+<span class="ln">29</span>window/size/viewport_height=<span class="tk-num">720</span>
+<span class="ln">30</span>window/stretch/mode=<span class="tk-str">&quot;canvas_items&quot;</span>
+<span class="ln">31</span>window/stretch/aspect=<span class="tk-str">&quot;expand&quot;</span></code></pre></div><!--/code-->
+<div class="code" data-src="project.godot" data-from="^\[rendering\]"><div class="file"><span><b>project.godot</b> · baris 107–110</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">107</span>[rendering]
+<span class="ln">108</span>
+<span class="ln">109</span>textures/canvas_textures/default_texture_filter=<span class="tk-num">0</span>
+<span class="ln">110</span>rendering_device/driver.windows=<span class="tk-str">&quot;d3d12&quot;</span></code></pre></div><!--/code-->
+
+<h3 id="input-map">Input Map</h3>
+<p>Game tidak pernah membaca tombol keyboard secara langsung. Ia membaca <b>aksi</b> bernama, dan Input Map memetakan tombol, stik, dan d-pad ke aksi itu. Pemain dengan gamepad dan keyboard jalan dengan kode yang sama.</p>
+<ol class="steps">
+  <li>Buka tab <span class="menu-path">Input Map</span>. Ketik <code>move_left</code> di kolom Add New Action, tekan Add.</li>
+  <li>Klik ikon <b>+</b> di baris aksi, tekan tombol <kbd>A</kbd>. Ulangi untuk <kbd>←</kbd>, lalu tambahkan <i>Joypad Axis 0 −</i> (stik kiri ke kiri) dan <i>Joypad Button 13</i> (d-pad kiri).</li>
+  <li>Ulangi untuk <code>move_right</code> (<kbd>D</kbd>, <kbd>→</kbd>, Axis 0 +, Button 14), <code>move_up</code> (<kbd>W</kbd>, <kbd>↑</kbd>, Axis 1 −, Button 11), <code>move_down</code> (<kbd>S</kbd>, <kbd>↓</kbd>, Axis 1 +, Button 12). Set <b>Deadzone</b> keempatnya ke <code>0.2</code>.</li>
+  <li>Tambahkan <code>pause</code> (<kbd>Esc</kbd>, <kbd>P</kbd>, Joypad Start) dan <code>restart</code> (<kbd>R</kbd>, Joypad Back/Select).</li>
+  <li>Aktifkan <b>Show Built-in Actions</b>, cari <code>ui_accept</code>, tambahkan <i>Joypad Button 0</i> (A). Untuk <code>ui_cancel</code> tambahkan <i>Joypad Button 1</i> (B). Default Godot tidak punya keduanya; Fase 2 dan 7 membutuhkannya.</li>
+</ol>
+<p>Saat membuat aksi, pilih <b>Physical Keycode</b> untuk WASD. Dengan physical keycode, posisi tombol yang dihitung, jadi pemain dengan layout AZERTY tetap memakai tombol di posisi W-A-S-D. Di <code>project.godot</code> ini terlihat sebagai <code>"physical_keycode":65</code> (A).</p>
+<p>Membacanya di kode cukup satu baris, dari <code>player/player.gd</code>:</p>
+<div class="code" data-src="player/player.gd" data-from="func tick\(dt: float\)" data-to="position = Vector3"><div class="file"><span><b>player/player.gd</b> · baris 105–107</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">105</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(dt: <span class="tk-ty">float</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">106</span>    <span class="tk-kw">var</span> input := <span class="tk-ty">Input</span>.<span class="tk-fn">get_vector</span>(<span class="tk-ann">&amp;&quot;move_left&quot;</span>, <span class="tk-ann">&amp;&quot;move_right&quot;</span>, <span class="tk-ann">&amp;&quot;move_up&quot;</span>, <span class="tk-ann">&amp;&quot;move_down&quot;</span>)
+<span class="ln">107</span>    pos2 += input * stats.<span class="tk-fn">value</span>(Stats.Id.MOVE_SPEED) * dt</code></pre></div><!--/code-->
+<p><code>Input.get_vector</code> mengembalikan <code>Vector2</code> dengan panjang maksimal 1 dan sudah menerapkan deadzone, jadi gerak diagonal tidak lebih cepat dari gerak lurus.</p>
+
+<h3 id="lain">Pengaturan lain di repo</h3>
+<ul>
+  <li><span class="menu-path">Physics → 3D → Physics Engine</span> = Jolt Physics (default baru Godot). Proyek ini tidak memakai fisika sama sekali; tabrakan dihitung sendiri (Bab 1).</li>
+  <li><code>rendering_device/driver.windows="d3d12"</code>: driver Direct3D 12 di Windows. Tidak wajib; Vulkan juga jalan.</li>
+  <li><span class="menu-path">GUI → Theme → Custom</span> diisi <code>res://ui/theme/game_theme.tres</code> di Fase 7.</li>
+</ul>
+
+<h2 id="git">Git untuk proyek Godot</h2>
+<p>Tiga file kecil di root repo menjaga riwayat tetap bersih:</p>
+<div class="code" data-src=".gitignore" data-lines="1-6"><div class="file"><span><b>.gitignore</b> · baris 1–6</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">1</span><span class="tk-com"># Godot 4+ specific ignores</span>
+<span class="ln">2</span>.godot/
+<span class="ln">3</span>/android/
+<span class="ln">4</span>build/
+<span class="ln">5</span>.claude/
+<span class="ln">6</span>addons/</code></pre></div><!--/code-->
+<div class="code" data-src=".gitattributes" data-lines="1-2"><div class="file"><span><b>.gitattributes</b> · baris 1–2</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">1</span><span class="tk-com"># Normalize EOL for all files that Git considers text files.</span>
+<span class="ln">2</span>* text=auto eol=lf</code></pre></div><!--/code-->
+<p><code>.godot/</code> adalah cache yang dibangun ulang otomatis. File <code>.import</code> di samping tiap PNG <b>di-commit</b>: isinya pengaturan impor (mis. tanpa mipmap, lossless), dan tanpa itu orang lain mendapat pengaturan default. <code>eol=lf</code> mencegah diff penuh karena perbedaan akhir baris Windows/Linux.</p>
+
+<h2 id="generator">Generator sprite: <code>tools/gen_sprites.py</code></h2>
+<p>Semua art di Knellbound dibuat oleh satu skrip Python. Setiap sprite ditulis sebagai teks ASCII: satu karakter = satu warna palet. Skrip menambahkan bayangan atas/bawah dan outline gelap 1 piksel secara otomatis, jadi semua sprite punya gaya yang sama.</p>
+<div class="code" data-src="tools/gen_sprites.py" data-from="^P_TOP = \[" data-to="^def player_frames"><div class="file"><span><b>tools/gen_sprites.py</b> · baris 153–172</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">153</span>P_TOP = [
+<span class="ln">154</span>    <span class="tk-str">&quot;.....HHHHH......&quot;</span>,
+<span class="ln">155</span>    <span class="tk-str">&quot;....HHHHHHH.....&quot;</span>,
+<span class="ln">156</span>    <span class="tk-str">&quot;....HHHHHHH.....&quot;</span>,
+<span class="ln">157</span>    <span class="tk-str">&quot;..hhhhhhhhhhh...&quot;</span>,
+<span class="ln">158</span>    <span class="tk-str">&quot;.....SSSSSS.....&quot;</span>,
+<span class="ln">159</span>    <span class="tk-str">&quot;.....SSSeSe.....&quot;</span>,
+<span class="ln">160</span>    <span class="tk-str">&quot;.....SSSSSS.....&quot;</span>,
+<span class="ln">161</span>    <span class="tk-str">&quot;....RRRRRRRR....&quot;</span>,
+<span class="ln">162</span>    <span class="tk-str">&quot;...CCRRCCCCCC...&quot;</span>,
+<span class="ln">163</span>    <span class="tk-str">&quot;...CCCRCCCCCCWW.&quot;</span>,
+<span class="ln">164</span>    <span class="tk-str">&quot;...SCCCYCCCCS...&quot;</span>,
+<span class="ln">165</span>    <span class="tk-str">&quot;....CCCCCCCC....&quot;</span>,
+<span class="ln">166</span>]
+<span class="ln">167</span>P_LEGS = [
+<span class="ln">168</span>    [<span class="tk-str">&quot;....PP...PP.....&quot;</span>, <span class="tk-str">&quot;....PP...PP.....&quot;</span>, <span class="tk-str">&quot;....BB...BB.....&quot;</span>],
+<span class="ln">169</span>    [<span class="tk-str">&quot;...PP.....PP....&quot;</span>, <span class="tk-str">&quot;..PP.......PP...&quot;</span>, <span class="tk-str">&quot;..BB.......BB...&quot;</span>],
+<span class="ln">170</span>    [<span class="tk-str">&quot;....PP...PP.....&quot;</span>, <span class="tk-str">&quot;....PP...PP.....&quot;</span>, <span class="tk-str">&quot;....BB...BB.....&quot;</span>],
+<span class="ln">171</span>    [<span class="tk-str">&quot;.....PP.PP......&quot;</span>, <span class="tk-str">&quot;.....PP.PP......&quot;</span>, <span class="tk-str">&quot;.....BB.BB......&quot;</span>],
+<span class="ln">172</span>]</code></pre></div><!--/code-->
+<p>Fungsi <code>render()</code> mengubah baris ASCII menjadi gambar. Perhatikan dua aturan: huruf besar diberi bayangan otomatis (lebih terang di tepi atas/kiri, lebih gelap di tepi bawah), dan piksel kosong yang bersebelahan dengan piksel berwarna menjadi <code>OUTLINE</code>.</p>
+<div class="code" data-src="tools/gen_sprites.py" data-from="^def render\(" data-to="^def sheet\(" data-hl="120-127"><div class="file"><span><b>tools/gen_sprites.py</b> · baris 94–139</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 94</span><span class="tk-kw">def</span> <span class="tk-fn">render</span>(rows, w=<span class="tk-num">16</span>, h=<span class="tk-num">16</span>, pal=<span class="tk-kw">None</span>, flat=<span class="tk-str">&quot;&quot;</span>):
+<span class="ln"> 95</span>    <span class="tk-str">&quot;&quot;</span>&quot;ASCII rows -&gt; RGBA <span class="tk-fn">image</span> ((w+<span class="tk-num">2</span>) <span class="tk-fn">x</span> (h+<span class="tk-num">2</span>)) <span class="tk-kw">with</span> shading + outline.
+<span class="ln"> 96</span>    `pal` adds/overrides palette entries <span class="tk-kw">for</span> this sprite only; `flat` lists
+<span class="ln"> 97</span>    extra characters that are <span class="tk-kw">not</span> auto-shaded.<span class="tk-str">&quot;&quot;</span>&quot;
+<span class="ln"> 98</span>    colors = PAL <span class="tk-kw">if</span> pal <span class="tk-kw">is</span> <span class="tk-kw">None</span> <span class="tk-kw">else</span> {**PAL, **pal}
+<span class="ln"> 99</span>    flats = FLAT | <span class="tk-fn">set</span>(flat)
+<span class="ln">100</span>    cw, ch_ = w + <span class="tk-num">2</span>, h + <span class="tk-num">2</span>
+<span class="ln">101</span>    img = Image.<span class="tk-fn">new</span>(<span class="tk-str">&quot;RGBA&quot;</span>, (cw, ch_), (<span class="tk-num">0</span>, <span class="tk-num">0</span>, <span class="tk-num">0</span>, <span class="tk-num">0</span>))
+<span class="ln">102</span>    px = img.<span class="tk-fn">load</span>()
+<span class="ln">103</span>    grid = [[<span class="tk-kw">None</span>] * w <span class="tk-kw">for</span> _ <span class="tk-kw">in</span> <span class="tk-fn">range</span>(h)]
+<span class="ln">104</span>    pad_top = h - <span class="tk-fn">len</span>(rows)  <span class="tk-com"># bottom-align so feet sit on the cell bottom</span>
+<span class="ln">105</span>    assert pad_top &gt;= <span class="tk-num">0</span>, <span class="tk-str">&quot;sprite taller than %d rows&quot;</span> % h
+<span class="ln">106</span>    <span class="tk-kw">for</span> y, row <span class="tk-kw">in</span> <span class="tk-fn">enumerate</span>(rows):
+<span class="ln">107</span>        <span class="tk-kw">for</span> x, ch <span class="tk-kw">in</span> <span class="tk-fn">enumerate</span>(row[:w]):
+<span class="ln">108</span>            <span class="tk-kw">if</span> ch != <span class="tk-str">&quot;.&quot;</span> <span class="tk-kw">and</span> ch != <span class="tk-str">&quot; &quot;</span>:
+<span class="ln">109</span>                grid[y + pad_top][x] = ch
+<span class="ln">110</span>
+<span class="ln">111</span>    <span class="tk-kw">def</span> <span class="tk-fn">solid</span>(x, y):
+<span class="ln">112</span>        <span class="tk-kw">return</span> <span class="tk-num">0</span> &lt;= x &lt; w <span class="tk-kw">and</span> <span class="tk-num">0</span> &lt;= y &lt; h <span class="tk-kw">and</span> grid[y][x] <span class="tk-kw">is</span> <span class="tk-kw">not</span> <span class="tk-kw">None</span>
+<span class="ln">113</span>
+<span class="ln">114</span>    <span class="tk-kw">for</span> y <span class="tk-kw">in</span> <span class="tk-fn">range</span>(h):
+<span class="ln">115</span>        <span class="tk-kw">for</span> x <span class="tk-kw">in</span> <span class="tk-fn">range</span>(w):
+<span class="ln">116</span>            ch = grid[y][x]
+<span class="ln">117</span>            <span class="tk-kw">if</span> ch <span class="tk-kw">is</span> <span class="tk-kw">None</span>:
+<span class="ln">118</span>                <span class="tk-kw">continue</span>
+<span class="ln">119</span>            c = colors[ch]
+<span class="hl"><span class="ln">120</span>            <span class="tk-kw">if</span> ch <span class="tk-kw">not</span> <span class="tk-kw">in</span> flats:</span>
+<span class="hl"><span class="ln">121</span>                up = <span class="tk-fn">solid</span>(x, y - <span class="tk-num">1</span>) <span class="tk-kw">and</span> grid[y - <span class="tk-num">1</span>][x] == ch</span>
+<span class="hl"><span class="ln">122</span>                down = <span class="tk-fn">solid</span>(x, y + <span class="tk-num">1</span>) <span class="tk-kw">and</span> grid[y + <span class="tk-num">1</span>][x] == ch</span>
+<span class="hl"><span class="ln">123</span>                left = <span class="tk-fn">solid</span>(x - <span class="tk-num">1</span>, y) <span class="tk-kw">and</span> grid[y][x - <span class="tk-num">1</span>] == ch</span>
+<span class="hl"><span class="ln">124</span>                <span class="tk-kw">if</span> <span class="tk-kw">not</span> up <span class="tk-kw">or</span> <span class="tk-kw">not</span> left:</span>
+<span class="hl"><span class="ln">125</span>                    c = <span class="tk-fn">shade</span>(c, <span class="tk-num">1.22</span>)</span>
+<span class="hl"><span class="ln">126</span>                <span class="tk-kw">elif</span> <span class="tk-kw">not</span> down:</span>
+<span class="hl"><span class="ln">127</span>                    c = <span class="tk-fn">shade</span>(c, <span class="tk-num">0.72</span>)</span>
+<span class="ln">128</span>            px[x + <span class="tk-num">1</span>, y + <span class="tk-num">1</span>] = c
+<span class="ln">129</span>    <span class="tk-com"># outline</span>
+<span class="ln">130</span>    <span class="tk-kw">for</span> y <span class="tk-kw">in</span> <span class="tk-fn">range</span>(ch_):
+<span class="ln">131</span>        <span class="tk-kw">for</span> x <span class="tk-kw">in</span> <span class="tk-fn">range</span>(cw):
+<span class="ln">132</span>            <span class="tk-kw">if</span> px[x, y][<span class="tk-num">3</span>] != <span class="tk-num">0</span>:
+<span class="ln">133</span>                <span class="tk-kw">continue</span>
+<span class="ln">134</span>            <span class="tk-kw">for</span> dx, dy <span class="tk-kw">in</span> ((<span class="tk-num">1</span>, <span class="tk-num">0</span>), (-<span class="tk-num">1</span>, <span class="tk-num">0</span>), (<span class="tk-num">0</span>, <span class="tk-num">1</span>), (<span class="tk-num">0</span>, -<span class="tk-num">1</span>)):
+<span class="ln">135</span>                nx, ny = x + dx, y + dy
+<span class="ln">136</span>                <span class="tk-kw">if</span> <span class="tk-num">0</span> &lt;= nx &lt; cw <span class="tk-kw">and</span> <span class="tk-num">0</span> &lt;= ny &lt; ch_ <span class="tk-kw">and</span> px[nx, ny][<span class="tk-num">3</span>] != <span class="tk-num">0</span> <span class="tk-kw">and</span> px[nx, ny] != OUTLINE:
+<span class="ln">137</span>                    px[x, y] = OUTLINE
+<span class="ln">138</span>                    <span class="tk-kw">break</span>
+<span class="ln">139</span>    <span class="tk-kw">return</span> img</code></pre></div><!--/code-->
+<p>Warna <code>OUTLINE = (24, 16, 30)</code> sengaja unik. Shader elite di Fase 5 mengenali piksel outline dengan membandingkan warna ini, lalu membuatnya menyala merah. Jadi skrip art dan shader punya "kontrak" lewat satu konstanta warna.</p>
+<ol class="steps">
+  <li>Salin <code>tools/gen_sprites.py</code> dari repo (atau mulai dari versi Fase 1: <code>git show 3f048ff:tools/gen_sprites.py</code>, 438 baris; versi akhir 2720 baris).</li>
+  <li>Buat <code>tools/.gdignore</code> kosong.</li>
+  <li>Dari root proyek jalankan <code>python tools/gen_sprites.py</code>. Kembali ke Godot: editor mengimpor PNG baru otomatis.</li>
+</ol>
+<div class="checkpoint"><span class="tag">Checkpoint</span>Di FileSystem muncul <code>art/sprites/player_hunter.png</code> (4 frame jalan, sel 18×18) dan <code>art/sprites/enemies.png</code>. Klik dua kali: gambarnya kecil dan tajam. Kalau buram di preview, itu hanya preview; yang penting filter di material nanti.</div>
+
+<h3 id="ukuran-sel">Kenapa sel 18×18?</h3>
+<p>Art digambar 16×16 piksel, ditambah 1 piksel outline di setiap sisi = 18. Skala dunia: <b>16 piksel = 1 unit dunia</b>, jadi satu sel sprite di dunia berukuran <code>18 / 16 = 1.125</code> unit. Konstanta itu muncul di kode sebagai <code>CELL_WORLD := 18.0 / 16.0</code>. Sprite besar (boss) memakai sel 34 (32 + outline).</p>
+
+<h2 id="plugin">Plugin godot_ai (opsional)</h2>
+<p>Repo ini dibangun dengan bantuan plugin <code>addons/godot_ai</code>, jembatan MCP yang memungkinkan asisten AI menjalankan game, mengambil screenshot, dan mengirim input. Plugin ini <b>bukan bagian dari game</b>: tidak ada kode game yang memanggilnya, dan di HEAD folder <code>addons/</code> ada di <code>.gitignore</code>. Kamu bisa mengabaikannya sepenuhnya. Kalau project.godot-mu berisi baris <code>_mcp_game_helper=…</code> di <code>[autoload]</code> tapi foldernya tidak ada, hapus baris itu dan baris <code>[editor_plugins]</code> supaya tidak muncul error.</p>
+
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>Sprite buram atau ada garis di tepi frame.</b> Filter linear. Cek <code>texture_filter</code> di Sprite3D dan <code>filter_nearest</code> di shader. Garis tipis di tepi biasanya berasal dari mipmap; matikan mipmap di tab Import untuk sheet sprite.</li>
+    <li><b>Aksi tidak bereaksi.</b> Nama aksi di kode harus sama persis (<code>&amp;"move_left"</code>). Salah ketik tidak menimbulkan error kompilasi, hanya peringatan di Output saat dijalankan.</li>
+    <li><b>Python tidak menemukan PIL.</b> <code>pip</code> menginstall ke Python lain. Pakai <code>python -m pip install pillow</code>.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>Tambahkan aksi <code>dash</code> (<kbd>Space</kbd>, Joypad Button 2) di Input Map, lalu buka <code>project.godot</code> di editor teks dan temukan bentuk teksnya. Hapus lagi sesudahnya; game tidak memakainya.</div>
+<nav class="pager" id="pager" aria-label="Halaman sebelumnya dan berikutnya"></nav>
+</article>
+</main>
+</div>
+<script src="assets/search-index.js?v=f641e385"></script>
+<script src="assets/site.js?v=3fa56380"></script>
+<script src="assets/demos.js?v=4520dcc1"></script>
+<script src="assets/demos-swarm.js?v=36474919"></script>
+<script src="assets/demos-systems.js?v=9a72b9ac"></script>
+</body>
+</html>

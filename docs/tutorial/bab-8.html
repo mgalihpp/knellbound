@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Bab 8 · Save, Toko, Hunter dan Audio</title>
+<meta name="description" content="Fase 8 Knellbound: SaveData autoload dengan save.json versi dan migrasi, tulis atomik tmp/bak, toko Reliquary, lima hunter dengan syarat buka, Audio autoload dengan pool 24 voice dan bus.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Pixelify+Sans:wght@500;600&display=swap">
+<link rel="stylesheet" href="assets/style.css?v=5213953b">
+<script>try{var t=JSON.parse(localStorage.getItem("kb-theme"));if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="bab-8">
+<header class="topbar">
+<button id="menu-btn" class="icon-btn" type="button" aria-label="Buka daftar bab"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Bab</button>
+<a class="brand" href="index.html">Knellbound <span>dari Nol</span></a>
+<span class="spacer"></span>
+<div class="search-wrap"><input id="search" type="search" placeholder="Cari… (tekan /)" aria-label="Cari di panduan" autocomplete="off"><div id="search-results" hidden></div></div>
+<button id="theme-btn" class="icon-btn" type="button" aria-label="Ganti tema"></button>
+<div class="progress-line"></div>
+</header>
+<div class="layout">
+<nav class="sidebar" id="sidebar" aria-label="Daftar bab"></nav>
+<main>
+<article class="article">
+<span class="eyebrow">Bab 8 · Fase 8 · commit 3b55d3c</span>
+<h1>Save, Toko, Hunter dan Audio</h1>
+<p class="lede">Fase terakhir membuat game punya ingatan dan suara. Koin dari setiap run disimpan, dibelanjakan di toko permanen, membuka hunter baru, dan semua itu tahan crash. Ribuan kematian per menit menghasilkan suara yang tetap enak didengar.</p>
+<div class="goal"><span class="tag">Tujuan</span>Koin terkumpul saat run dan masuk "bank" saat run berakhir. Reliquary menjual 18 upgrade permanen. Lima hunter dengan senjata awal berbeda, sebagian terkunci. Semua tersimpan di <code>user://save.json</code> yang selalu bisa dibaca walau game mati saat menulis. Efek suara dan musik dengan batas jumlah voice.</div>
+<div class="shots">
+  <figure><img src="assets/img/p8_shop.webp" alt="Toko Reliquary: grid kartu upgrade dengan harga, panel detail di kanan" width="1280" height="720" loading="lazy"><figcaption>Reliquary (scenes/shop.tscn).</figcaption></figure>
+  <figure><img src="assets/img/p8_select.webp" alt="Layar pilih hunter: Hunter, Sister Maud, Vesna Thorn, Brother Odo, Dame Ysolde terkunci" width="1280" height="720" loading="lazy"><figcaption>Pilih hunter: Dame Ysolde masih terkunci (rekrut 750 koin).</figcaption></figure>
+</div>
+
+<h2 id="user-dir">Di mana file save tinggal: <code>user://</code></h2>
+<div class="callout"><span class="tag">Konsep · res:// vs user://</span><p><code>res://</code> adalah folder proyek: <b>hanya baca</b> setelah game diekspor (isinya dikemas di file .pck). <code>user://</code> adalah folder data pengguna yang bisa ditulis: di Windows <code>%APPDATA%\Godot\app_userdata\Knellbound\</code>, di Linux <code>~/.local/share/godot/app_userdata/Knellbound/</code>, di web IndexedDB browser. Di editor: <span class="menu-path">Project → Open User Data Folder</span>.</p></div>
+
+<h2 id="save-data">SaveData: state permanen + aturan meta</h2>
+<p><code>autoload/save_data.gd</code> memegang semua yang melewati satu run: koin, level upgrade toko, hunter yang terbuka dan terpilih, opsi, dan rekor. Seperti Game di dalam run, SaveData juga <b>pemilik aturan meta</b>: membeli, refund, membuka hunter, membank run. Layar toko dan pilih hunter hanya view.</p>
+<div class="code" data-src="autoload/save_data.gd" data-from="^signal changed" data-to="^func _ready"><div class="file"><span><b>autoload/save_data.gd</b> · baris 18–43</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">18</span><span class="tk-kw">signal</span> changed
+<span class="ln">19</span>
+<span class="ln">20</span><span class="tk-kw">const</span> PATH := <span class="tk-str">&quot;user://save.json&quot;</span>
+<span class="ln">21</span><span class="tk-kw">const</span> VERSION := <span class="tk-num">2</span>
+<span class="ln">22</span><span class="tk-com">## Phase 7 kept options in their own file; version 1 saves import it.</span>
+<span class="ln">23</span><span class="tk-kw">const</span> LEGACY_SETTINGS := <span class="tk-str">&quot;user://settings.cfg&quot;</span>
+<span class="ln">24</span><span class="tk-kw">const</span> CATALOG: MetaCatalog = <span class="tk-kw">preload</span>(<span class="tk-str">&quot;res://data/meta.tres&quot;</span>)
+<span class="ln">25</span><span class="tk-com">## Coalesces bursts of option changes (slider drags) into one write.</span>
+<span class="ln">26</span><span class="tk-kw">const</span> SAVE_DELAY := <span class="tk-num">0.4</span>
+<span class="ln">27</span>
+<span class="ln">28</span><span class="tk-kw">var</span> coins := <span class="tk-num">0</span>
+<span class="ln">29</span><span class="tk-com">## MetaUpgrade.id -&gt; bought level.</span>
+<span class="ln">30</span><span class="tk-kw">var</span> upgrade_levels: <span class="tk-ty">Dictionary</span>[<span class="tk-ty">StringName</span>, <span class="tk-ty">int</span>] = {}
+<span class="ln">31</span><span class="tk-kw">var</span> unlocked: <span class="tk-ty">Array</span>[<span class="tk-ty">StringName</span>] = []
+<span class="ln">32</span><span class="tk-kw">var</span> selected: <span class="tk-ty">StringName</span> = <span class="tk-ann">&amp;&quot;&quot;</span>
+<span class="ln">33</span><span class="tk-com">## Settings&#x27; values (keys and defaults belong to the Settings autoload).</span>
+<span class="ln">34</span><span class="tk-kw">var</span> options: <span class="tk-ty">Dictionary</span> = {}
+<span class="ln">35</span><span class="tk-kw">var</span> best_time := <span class="tk-num">0.0</span>
+<span class="ln">36</span><span class="tk-kw">var</span> total_kills := <span class="tk-num">0</span>
+<span class="ln">37</span><span class="tk-kw">var</span> runs := <span class="tk-num">0</span>
+<span class="ln">38</span><span class="tk-kw">var</span> nights_survived := <span class="tk-num">0</span>
+<span class="ln">39</span><span class="tk-kw">var</span> lifetime_coins := <span class="tk-num">0</span>
+<span class="ln">40</span><span class="tk-com">## How the last load went: &quot;ok&quot;, &quot;backup&quot;, &quot;new&quot; or &quot;corrupt&quot; (debug / tests).</span>
+<span class="ln">41</span><span class="tk-kw">var</span> load_status := <span class="tk-str">&quot;&quot;</span>
+<span class="ln">42</span>
+<span class="ln">43</span><span class="tk-kw">var</span> _save_queued := <span class="tk-kw">false</span></code></pre></div><!--/code-->
+<p>Format JSON memakai <b>id string</b>, bukan indeks: <code>{"upgrades": {"might": 3}}</code>, bukan <code>[3, 0, 0, …]</code>. Urutan upgrade di toko bisa diubah, upgrade baru bisa ditambah, save lama tetap benar.</p>
+
+<h3 id="atomik">Menulis secara atomik</h3>
+<p>Kalau game crash (atau listrik mati) tepat saat <code>save.json</code> sedang ditulis, file bisa tersisa setengah: JSON rusak, semua progres hilang. Solusinya: jangan pernah menulis langsung ke file yang sudah ada.</p>
+<div class="code" data-src="autoload/save_data.gd" data-from="^func save_game" data-to="^## Saves a moment later"><div class="file"><span><b>autoload/save_data.gd</b> · baris 78–95</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">78</span><span class="tk-kw">func</span> <span class="tk-fn">save_game</span>() -&gt; <span class="tk-ty">bool</span>:
+<span class="ln">79</span>    _save_queued = <span class="tk-kw">false</span>
+<span class="ln">80</span>    <span class="tk-kw">var</span> tmp := PATH + <span class="tk-str">&quot;.tmp&quot;</span>
+<span class="ln">81</span>    <span class="tk-kw">var</span> f := <span class="tk-ty">FileAccess</span>.<span class="tk-fn">open</span>(tmp, <span class="tk-ty">FileAccess</span>.WRITE)
+<span class="ln">82</span>    <span class="tk-kw">if</span> f == <span class="tk-kw">null</span>:
+<span class="ln">83</span>        <span class="tk-fn">push_warning</span>(<span class="tk-str">&quot;SaveData: cannot write %s (%s)&quot;</span> % [tmp, <span class="tk-fn">error_string</span>(<span class="tk-ty">FileAccess</span>.<span class="tk-fn">get_open_error</span>())])
+<span class="ln">84</span>        <span class="tk-kw">return</span> <span class="tk-kw">false</span>
+<span class="ln">85</span>    f.<span class="tk-fn">store_string</span>(<span class="tk-ty">JSON</span>.<span class="tk-fn">stringify</span>(<span class="tk-fn">_to_dict</span>(), <span class="tk-str">&quot;\t&quot;</span>))
+<span class="ln">86</span>    f.<span class="tk-fn">close</span>()
+<span class="ln">87</span>    <span class="tk-kw">if</span> <span class="tk-ty">FileAccess</span>.<span class="tk-fn">file_exists</span>(PATH):
+<span class="ln">88</span>        <span class="tk-kw">if</span> <span class="tk-ty">FileAccess</span>.<span class="tk-fn">file_exists</span>(PATH + <span class="tk-str">&quot;.bak&quot;</span>):
+<span class="ln">89</span>            <span class="tk-ty">DirAccess</span>.<span class="tk-fn">remove_absolute</span>(PATH + <span class="tk-str">&quot;.bak&quot;</span>)
+<span class="ln">90</span>        <span class="tk-ty">DirAccess</span>.<span class="tk-fn">rename_absolute</span>(PATH, PATH + <span class="tk-str">&quot;.bak&quot;</span>)
+<span class="ln">91</span>    <span class="tk-kw">var</span> err := <span class="tk-ty">DirAccess</span>.<span class="tk-fn">rename_absolute</span>(tmp, PATH)
+<span class="ln">92</span>    <span class="tk-kw">if</span> err != OK:
+<span class="ln">93</span>        <span class="tk-fn">push_warning</span>(<span class="tk-str">&quot;SaveData: rename failed (%s)&quot;</span> % <span class="tk-fn">error_string</span>(err))
+<span class="ln">94</span>        <span class="tk-kw">return</span> <span class="tk-kw">false</span>
+<span class="ln">95</span>    <span class="tk-kw">return</span> <span class="tk-kw">true</span></code></pre></div><!--/code-->
+<div class="demo" data-demo="save"></div>
+<p>Rename di sistem file yang sama bersifat atomik: file target berganti seluruhnya atau tidak sama sekali. Jadi di titik mana pun crash terjadi, minimal satu dari <code>save.json</code> atau <code>save.json.bak</code> berisi JSON utuh. Pemuatan mencoba keduanya:</p>
+<div class="code" data-src="autoload/save_data.gd" data-from="^func load_game" data-to="^func save_game"><div class="file"><span><b>autoload/save_data.gd</b> · baris 58–75</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">58</span><span class="tk-kw">func</span> <span class="tk-fn">load_game</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">59</span>    <span class="tk-fn">_reset</span>()
+<span class="ln">60</span>    <span class="tk-kw">var</span> d: Variant = <span class="tk-fn">_read</span>(PATH)
+<span class="ln">61</span>    load_status = <span class="tk-str">&quot;ok&quot;</span>
+<span class="ln">62</span>    <span class="tk-kw">if</span> d == <span class="tk-kw">null</span> <span class="tk-kw">and</span> <span class="tk-ty">FileAccess</span>.<span class="tk-fn">file_exists</span>(PATH):
+<span class="ln">63</span>        <span class="tk-fn">push_warning</span>(<span class="tk-str">&quot;SaveData: %s is unreadable, kept as .corrupt&quot;</span> % PATH)
+<span class="ln">64</span>        <span class="tk-ty">DirAccess</span>.<span class="tk-fn">copy_absolute</span>(PATH, PATH + <span class="tk-str">&quot;.corrupt&quot;</span>)
+<span class="ln">65</span>        load_status = <span class="tk-str">&quot;corrupt&quot;</span>
+<span class="ln">66</span>    <span class="tk-kw">if</span> d == <span class="tk-kw">null</span>:
+<span class="ln">67</span>        d = <span class="tk-fn">_read</span>(PATH + <span class="tk-str">&quot;.bak&quot;</span>)
+<span class="ln">68</span>        <span class="tk-kw">if</span> d != <span class="tk-kw">null</span>:
+<span class="ln">69</span>            load_status = <span class="tk-str">&quot;backup&quot;</span>
+<span class="ln">70</span>    <span class="tk-kw">if</span> d == <span class="tk-kw">null</span>:
+<span class="ln">71</span>        <span class="tk-kw">if</span> load_status != <span class="tk-str">&quot;corrupt&quot;</span>:
+<span class="ln">72</span>            load_status = <span class="tk-str">&quot;new&quot;</span>
+<span class="ln">73</span>        d = {}
+<span class="ln">74</span>    <span class="tk-fn">_from_dict</span>(<span class="tk-fn">_migrate</span>(d))
+<span class="ln">75</span>    <span class="tk-fn">_unlock_free</span>()</code></pre></div><!--/code-->
+<div class="code" data-src="autoload/save_data.gd" data-from="^func _read" data-to="^func _reset"><div class="file"><span><b>autoload/save_data.gd</b> · baris 46–121</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 46</span><span class="tk-kw">func</span> <span class="tk-fn">_ready</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln"> 47</span>    process_mode = <span class="tk-ty">Node</span>.PROCESS_MODE_ALWAYS
+<span class="ln"> 48</span>    <span class="tk-fn">load_game</span>()
+<span class="ln"> 49</span>
+<span class="ln"> 50</span>
+<span class="ln"> 51</span><span class="tk-kw">func</span> <span class="tk-fn">_notification</span>(what: <span class="tk-ty">int</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln"> 52</span>    <span class="tk-kw">if</span> what == NOTIFICATION_WM_CLOSE_REQUEST <span class="tk-kw">and</span> _save_queued:
+<span class="ln"> 53</span>        <span class="tk-fn">save_game</span>()
+<span class="ln"> 54</span>
+<span class="ln"> 55</span>
+<span class="ln"> 56</span><span class="tk-com"># ---------------------------------------------------------------- persistence</span>
+<span class="ln"> 57</span>
+<span class="ln"> 58</span><span class="tk-kw">func</span> <span class="tk-fn">load_game</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln"> 59</span>    <span class="tk-fn">_reset</span>()
+<span class="ln"> 60</span>    <span class="tk-kw">var</span> d: Variant = <span class="tk-fn">_read</span>(PATH)
+<span class="ln"> 61</span>    load_status = <span class="tk-str">&quot;ok&quot;</span>
+<span class="ln"> 62</span>    <span class="tk-kw">if</span> d == <span class="tk-kw">null</span> <span class="tk-kw">and</span> <span class="tk-ty">FileAccess</span>.<span class="tk-fn">file_exists</span>(PATH):
+<span class="ln"> 63</span>        <span class="tk-fn">push_warning</span>(<span class="tk-str">&quot;SaveData: %s is unreadable, kept as .corrupt&quot;</span> % PATH)
+<span class="ln"> 64</span>        <span class="tk-ty">DirAccess</span>.<span class="tk-fn">copy_absolute</span>(PATH, PATH + <span class="tk-str">&quot;.corrupt&quot;</span>)
+<span class="ln"> 65</span>        load_status = <span class="tk-str">&quot;corrupt&quot;</span>
+<span class="ln"> 66</span>    <span class="tk-kw">if</span> d == <span class="tk-kw">null</span>:
+<span class="ln"> 67</span>        d = <span class="tk-fn">_read</span>(PATH + <span class="tk-str">&quot;.bak&quot;</span>)
+<span class="ln"> 68</span>        <span class="tk-kw">if</span> d != <span class="tk-kw">null</span>:
+<span class="ln"> 69</span>            load_status = <span class="tk-str">&quot;backup&quot;</span>
+<span class="ln"> 70</span>    <span class="tk-kw">if</span> d == <span class="tk-kw">null</span>:
+<span class="ln"> 71</span>        <span class="tk-kw">if</span> load_status != <span class="tk-str">&quot;corrupt&quot;</span>:
+<span class="ln"> 72</span>            load_status = <span class="tk-str">&quot;new&quot;</span>
+<span class="ln"> 73</span>        d = {}
+<span class="ln"> 74</span>    <span class="tk-fn">_from_dict</span>(<span class="tk-fn">_migrate</span>(d))
+<span class="ln"> 75</span>    <span class="tk-fn">_unlock_free</span>()
+<span class="ln"> 76</span>
+<span class="ln"> 77</span>
+<span class="ln"> 78</span><span class="tk-kw">func</span> <span class="tk-fn">save_game</span>() -&gt; <span class="tk-ty">bool</span>:
+<span class="ln"> 79</span>    _save_queued = <span class="tk-kw">false</span>
+<span class="ln"> 80</span>    <span class="tk-kw">var</span> tmp := PATH + <span class="tk-str">&quot;.tmp&quot;</span>
+<span class="ln"> 81</span>    <span class="tk-kw">var</span> f := <span class="tk-ty">FileAccess</span>.<span class="tk-fn">open</span>(tmp, <span class="tk-ty">FileAccess</span>.WRITE)
+<span class="ln"> 82</span>    <span class="tk-kw">if</span> f == <span class="tk-kw">null</span>:
+<span class="ln"> 83</span>        <span class="tk-fn">push_warning</span>(<span class="tk-str">&quot;SaveData: cannot write %s (%s)&quot;</span> % [tmp, <span class="tk-fn">error_string</span>(<span class="tk-ty">FileAccess</span>.<span class="tk-fn">get_open_error</span>())])
+<span class="ln"> 84</span>        <span class="tk-kw">return</span> <span class="tk-kw">false</span>
+<span class="ln"> 85</span>    f.<span class="tk-fn">store_string</span>(<span class="tk-ty">JSON</span>.<span class="tk-fn">stringify</span>(<span class="tk-fn">_to_dict</span>(), <span class="tk-str">&quot;\t&quot;</span>))
+<span class="ln"> 86</span>    f.<span class="tk-fn">close</span>()
+<span class="ln"> 87</span>    <span class="tk-kw">if</span> <span class="tk-ty">FileAccess</span>.<span class="tk-fn">file_exists</span>(PATH):
+<span class="ln"> 88</span>        <span class="tk-kw">if</span> <span class="tk-ty">FileAccess</span>.<span class="tk-fn">file_exists</span>(PATH + <span class="tk-str">&quot;.bak&quot;</span>):
+<span class="ln"> 89</span>            <span class="tk-ty">DirAccess</span>.<span class="tk-fn">remove_absolute</span>(PATH + <span class="tk-str">&quot;.bak&quot;</span>)
+<span class="ln"> 90</span>        <span class="tk-ty">DirAccess</span>.<span class="tk-fn">rename_absolute</span>(PATH, PATH + <span class="tk-str">&quot;.bak&quot;</span>)
+<span class="ln"> 91</span>    <span class="tk-kw">var</span> err := <span class="tk-ty">DirAccess</span>.<span class="tk-fn">rename_absolute</span>(tmp, PATH)
+<span class="ln"> 92</span>    <span class="tk-kw">if</span> err != OK:
+<span class="ln"> 93</span>        <span class="tk-fn">push_warning</span>(<span class="tk-str">&quot;SaveData: rename failed (%s)&quot;</span> % <span class="tk-fn">error_string</span>(err))
+<span class="ln"> 94</span>        <span class="tk-kw">return</span> <span class="tk-kw">false</span>
+<span class="ln"> 95</span>    <span class="tk-kw">return</span> <span class="tk-kw">true</span>
+<span class="ln"> 96</span>
+<span class="ln"> 97</span>
+<span class="ln"> 98</span><span class="tk-com">## Saves a moment later; many calls in a row write once.</span>
+<span class="ln"> 99</span><span class="tk-kw">func</span> <span class="tk-fn">queue_save</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">100</span>    <span class="tk-kw">if</span> _save_queued:
+<span class="ln">101</span>        <span class="tk-kw">return</span>
+<span class="ln">102</span>    _save_queued = <span class="tk-kw">true</span>
+<span class="ln">103</span>    <span class="tk-fn">get_tree</span>().<span class="tk-fn">create_timer</span>(SAVE_DELAY, <span class="tk-kw">true</span>, <span class="tk-kw">false</span>, <span class="tk-kw">true</span>).timeout.<span class="tk-fn">connect</span>(
+<span class="ln">104</span>        <span class="tk-kw">func</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">105</span>            <span class="tk-kw">if</span> _save_queued:
+<span class="ln">106</span>                <span class="tk-fn">save_game</span>())
+<span class="ln">107</span>
+<span class="ln">108</span>
+<span class="ln">109</span><span class="tk-kw">func</span> <span class="tk-fn">_read</span>(path: <span class="tk-ty">String</span>) -&gt; Variant:
+<span class="ln">110</span>    <span class="tk-kw">if</span> <span class="tk-kw">not</span> <span class="tk-ty">FileAccess</span>.<span class="tk-fn">file_exists</span>(path):
+<span class="ln">111</span>        <span class="tk-kw">return</span> <span class="tk-kw">null</span>
+<span class="ln">112</span>    <span class="tk-kw">var</span> bytes := <span class="tk-ty">FileAccess</span>.<span class="tk-fn">get_file_as_bytes</span>(path)
+<span class="ln">113</span>    <span class="tk-com"># Binary garbage (not a JSON object) is rejected before UTF-8 decoding,</span>
+<span class="ln">114</span>    <span class="tk-com"># which would log an error per invalid byte.</span>
+<span class="ln">115</span>    <span class="tk-kw">if</span> bytes.<span class="tk-fn">is_empty</span>() <span class="tk-kw">or</span> bytes[<span class="tk-num">0</span>] != <span class="tk-num">0x7B</span> <span class="tk-kw">or</span> bytes.<span class="tk-fn">has</span>(<span class="tk-num">0</span>):
+<span class="ln">116</span>        <span class="tk-kw">return</span> <span class="tk-kw">null</span>
+<span class="ln">117</span>    <span class="tk-kw">var</span> text := bytes.<span class="tk-fn">get_string_from_utf8</span>()
+<span class="ln">118</span>    <span class="tk-kw">var</span> json := <span class="tk-ty">JSON</span>.<span class="tk-fn">new</span>()
+<span class="ln">119</span>    <span class="tk-kw">if</span> json.<span class="tk-fn">parse</span>(text) != OK <span class="tk-kw">or</span> <span class="tk-kw">not</span> json.data <span class="tk-kw">is</span> <span class="tk-ty">Dictionary</span>:
+<span class="ln">120</span>        <span class="tk-kw">return</span> <span class="tk-kw">null</span>
+<span class="ln">121</span>    <span class="tk-kw">return</span> json.data</code></pre></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">.corrupt</b>File yang tidak bisa dibaca tidak dihapus; ia disalin ke <code>save.json.corrupt</code> untuk diperiksa, dan game tetap jalan.</li>
+  <li><b class="ln">0x7B</b>Byte pertama harus <code>{</code>. Sampah biner ditolak sebelum dekode UTF-8, yang kalau tidak akan mencetak satu error per byte rusak.</li>
+  <li><b class="ln">queue_save</b>Menggeser slider volume memanggil setter puluhan kali per detik. <code>queue_save()</code> menggabungkannya menjadi satu tulis 0,4 detik kemudian; <code>NOTIFICATION_WM_CLOSE_REQUEST</code> menyimpan yang tertunda saat jendela ditutup.</li>
+</ul>
+
+<h3 id="validasi">Validasi dan migrasi</h3>
+<p>File save adalah input dari luar: bisa diedit pemain, bisa berasal dari versi lama. Setiap field dicek tipenya dan di-clamp; id yang tidak dikenal dibuang.</p>
+<div class="code" data-src="autoload/save_data.gd" data-from="^func _from_dict" data-to="^## A finite number"><div class="file"><span><b>autoload/save_data.gd</b> · baris 190–213</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">190</span><span class="tk-kw">func</span> <span class="tk-fn">_from_dict</span>(d: <span class="tk-ty">Dictionary</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">191</span>    coins = <span class="tk-fn">maxi</span>(<span class="tk-num">0</span>, <span class="tk-ty">int</span>(<span class="tk-fn">_num</span>(d, <span class="tk-str">&quot;coins&quot;</span>, <span class="tk-num">0</span>)))
+<span class="ln">192</span>    <span class="tk-kw">var</span> levels: Variant = d.<span class="tk-fn">get</span>(<span class="tk-str">&quot;upgrades&quot;</span>)
+<span class="ln">193</span>    <span class="tk-kw">if</span> levels <span class="tk-kw">is</span> <span class="tk-ty">Dictionary</span>:
+<span class="ln">194</span>        <span class="tk-kw">for</span> key <span class="tk-kw">in</span> levels:
+<span class="ln">195</span>            <span class="tk-kw">var</span> u := CATALOG.<span class="tk-fn">upgrade</span>(<span class="tk-ty">StringName</span>(<span class="tk-fn">str</span>(key)))
+<span class="ln">196</span>            <span class="tk-kw">if</span> u != <span class="tk-kw">null</span> <span class="tk-kw">and</span> (levels[key] <span class="tk-kw">is</span> <span class="tk-ty">float</span> <span class="tk-kw">or</span> levels[key] <span class="tk-kw">is</span> <span class="tk-ty">int</span>):
+<span class="ln">197</span>                upgrade_levels[u.id] = <span class="tk-fn">clampi</span>(<span class="tk-ty">int</span>(levels[key]), <span class="tk-num">0</span>, u.max_level)
+<span class="ln">198</span>    <span class="tk-kw">var</span> ids: Variant = d.<span class="tk-fn">get</span>(<span class="tk-str">&quot;unlocked&quot;</span>)
+<span class="ln">199</span>    <span class="tk-kw">if</span> ids <span class="tk-kw">is</span> <span class="tk-ty">Array</span>:
+<span class="ln">200</span>        <span class="tk-kw">for</span> id <span class="tk-kw">in</span> ids:
+<span class="ln">201</span>            <span class="tk-kw">var</span> c := CATALOG.<span class="tk-fn">character</span>(<span class="tk-ty">StringName</span>(<span class="tk-fn">str</span>(id)))
+<span class="ln">202</span>            <span class="tk-kw">if</span> c != <span class="tk-kw">null</span> <span class="tk-kw">and</span> <span class="tk-kw">not</span> unlocked.<span class="tk-fn">has</span>(c.id):
+<span class="ln">203</span>                unlocked.<span class="tk-fn">append</span>(c.id)
+<span class="ln">204</span>    selected = <span class="tk-ty">StringName</span>(<span class="tk-fn">str</span>(d.<span class="tk-fn">get</span>(<span class="tk-str">&quot;selected&quot;</span>, <span class="tk-str">&quot;&quot;</span>)))
+<span class="ln">205</span>    <span class="tk-kw">if</span> d.<span class="tk-fn">get</span>(<span class="tk-str">&quot;options&quot;</span>) <span class="tk-kw">is</span> <span class="tk-ty">Dictionary</span>:
+<span class="ln">206</span>        options = d[<span class="tk-str">&quot;options&quot;</span>]
+<span class="ln">207</span>    <span class="tk-kw">var</span> rec: Variant = d.<span class="tk-fn">get</span>(<span class="tk-str">&quot;records&quot;</span>)
+<span class="ln">208</span>    <span class="tk-kw">if</span> rec <span class="tk-kw">is</span> <span class="tk-ty">Dictionary</span>:
+<span class="ln">209</span>        best_time = <span class="tk-fn">maxf</span>(<span class="tk-num">0.0</span>, <span class="tk-fn">_num</span>(rec, <span class="tk-str">&quot;best_time&quot;</span>, <span class="tk-num">0.0</span>))
+<span class="ln">210</span>        total_kills = <span class="tk-fn">maxi</span>(<span class="tk-num">0</span>, <span class="tk-ty">int</span>(<span class="tk-fn">_num</span>(rec, <span class="tk-str">&quot;total_kills&quot;</span>, <span class="tk-num">0</span>)))
+<span class="ln">211</span>        runs = <span class="tk-fn">maxi</span>(<span class="tk-num">0</span>, <span class="tk-ty">int</span>(<span class="tk-fn">_num</span>(rec, <span class="tk-str">&quot;runs&quot;</span>, <span class="tk-num">0</span>)))
+<span class="ln">212</span>        nights_survived = <span class="tk-fn">maxi</span>(<span class="tk-num">0</span>, <span class="tk-ty">int</span>(<span class="tk-fn">_num</span>(rec, <span class="tk-str">&quot;nights_survived&quot;</span>, <span class="tk-num">0</span>)))
+<span class="ln">213</span>        lifetime_coins = <span class="tk-fn">maxi</span>(<span class="tk-num">0</span>, <span class="tk-ty">int</span>(<span class="tk-fn">_num</span>(rec, <span class="tk-str">&quot;lifetime_coins&quot;</span>, <span class="tk-num">0</span>)))</code></pre></div><!--/code-->
+<div class="code" data-src="autoload/save_data.gd" data-from="^## Brings an older save dictionary" data-to="^func _legacy_options"><div class="file"><span><b>autoload/save_data.gd</b> · baris 137–146</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">137</span><span class="tk-com">## Brings an older save dictionary up to VERSION, one step at a time.</span>
+<span class="ln">138</span><span class="tk-kw">func</span> <span class="tk-fn">_migrate</span>(d: <span class="tk-ty">Dictionary</span>) -&gt; <span class="tk-ty">Dictionary</span>:
+<span class="ln">139</span>    <span class="tk-kw">var</span> v := <span class="tk-ty">int</span>(<span class="tk-fn">_num</span>(d, <span class="tk-str">&quot;version&quot;</span>, <span class="tk-num">1</span>))
+<span class="ln">140</span>    <span class="tk-kw">if</span> v &lt; <span class="tk-num">2</span>:
+<span class="ln">141</span>        <span class="tk-com"># v1 -&gt; v2: options moved from settings.cfg into the save.</span>
+<span class="ln">142</span>        <span class="tk-kw">if</span> <span class="tk-kw">not</span> d.<span class="tk-fn">get</span>(<span class="tk-str">&quot;options&quot;</span>) <span class="tk-kw">is</span> <span class="tk-ty">Dictionary</span>:
+<span class="ln">143</span>            d[<span class="tk-str">&quot;options&quot;</span>] = <span class="tk-fn">_legacy_options</span>()
+<span class="ln">144</span>        v = <span class="tk-num">2</span>
+<span class="ln">145</span>    d[<span class="tk-str">&quot;version&quot;</span>] = v
+<span class="ln">146</span>    <span class="tk-kw">return</span> d</code></pre></div><!--/code-->
+<p>Pola migrasi bertahap: setiap versi punya satu langkah <code>if v &lt; N</code>, dijalankan berurutan. Save v1 (Fase 7 menyimpan opsi di <code>settings.cfg</code>) diangkat ke v2 dengan membaca file lama itu. Menambah field cukup default di <code>_reset()</code> + baca di <code>_from_dict()</code>; mengubah bentuk = naikkan <code>VERSION</code> + satu langkah baru.</p>
+
+<h2 id="toko">Reliquary: upgrade permanen sebagai data</h2>
+<div class="code" data-src="meta/meta_upgrade.gd" data-to="^## .\+10% damage. for"><div class="file"><span><b>meta/meta_upgrade.gd</b> · baris 1–30</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> MetaUpgrade
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">Resource</span>
+<span class="ln"> 3</span><span class="tk-com">## One Reliquary (permanent shop) upgrade. Bought levels are saved by `id` in</span>
+<span class="ln"> 4</span><span class="tk-com">## SaveData; at run start `modifiers` are applied once per bought level to the</span>
+<span class="ln"> 5</span><span class="tk-com">## player&#x27;s Stats (SaveData.apply_upgrades).</span>
+<span class="ln"> 6</span>
+<span class="ln"> 7</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> id: <span class="tk-ty">StringName</span>
+<span class="ln"> 8</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> display_name := <span class="tk-str">&quot;&quot;</span>
+<span class="ln"> 9</span><span class="tk-ann">@export_multiline</span> <span class="tk-kw">var</span> description := <span class="tk-str">&quot;&quot;</span>
+<span class="ln">10</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> icon: <span class="tk-ty">Texture2D</span>
+<span class="ln">11</span><span class="tk-com">## Applied `level` times.</span>
+<span class="ln">12</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> modifiers: <span class="tk-ty">Array</span>[StatModifier] = []
+<span class="ln">13</span><span class="tk-ann">@export_range</span>(<span class="tk-num">1</span>, <span class="tk-num">10</span>) <span class="tk-kw">var</span> max_level := <span class="tk-num">5</span>
+<span class="ln">14</span><span class="tk-com">## Price of the first level.</span>
+<span class="ln">15</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> base_cost := <span class="tk-num">100</span>
+<span class="ln">16</span><span class="tk-com">## Each further level costs this much times the previous one.</span>
+<span class="ln">17</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> cost_growth := <span class="tk-num">1.5</span>
+<span class="ln">18</span>
+<span class="ln">19</span>
+<span class="ln">20</span><span class="tk-com">## Price of going from `level` to `level + 1`, rounded to 5 coins.</span>
+<span class="ln">21</span><span class="tk-kw">func</span> <span class="tk-fn">cost</span>(level: <span class="tk-ty">int</span>) -&gt; <span class="tk-ty">int</span>:
+<span class="ln">22</span>    <span class="tk-kw">return</span> <span class="tk-fn">maxi</span>(<span class="tk-num">5</span>, <span class="tk-fn">roundi</span>(base_cost * <span class="tk-fn">pow</span>(cost_growth, level) / <span class="tk-num">5.0</span>) * <span class="tk-num">5</span>)
+<span class="ln">23</span>
+<span class="ln">24</span>
+<span class="ln">25</span><span class="tk-com">## Everything spent on the first `level` levels (what a refund gives back).</span>
+<span class="ln">26</span><span class="tk-kw">func</span> <span class="tk-fn">spent</span>(level: <span class="tk-ty">int</span>) -&gt; <span class="tk-ty">int</span>:
+<span class="ln">27</span>    <span class="tk-kw">var</span> total := <span class="tk-num">0</span>
+<span class="ln">28</span>    <span class="tk-kw">for</span> l <span class="tk-kw">in</span> level:
+<span class="ln">29</span>        total += <span class="tk-fn">cost</span>(l)
+<span class="ln">30</span>    <span class="tk-kw">return</span> total</code></pre></div><!--/code-->
+<p>Harga tumbuh geometris (<code>base_cost × cost_growth^level</code>), dibulatkan ke kelipatan 5 supaya enak dibaca. Refund mengembalikan <code>spent(level)</code>. Saat run mulai, setiap level yang dibeli menerapkan modifier yang sama ke Stats, memakai <code>add_modifier(m, times)</code> dari Bab 2:</p>
+<div class="code" data-src="autoload/save_data.gd" data-from="^func apply_upgrades" data-to="^# -+ runs"><div class="file"><span><b>autoload/save_data.gd</b> · baris 335–340</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">335</span><span class="tk-kw">func</span> <span class="tk-fn">apply_upgrades</span>(stats: Stats) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">336</span>    <span class="tk-kw">for</span> u <span class="tk-kw">in</span> CATALOG.upgrades:
+<span class="ln">337</span>        <span class="tk-kw">var</span> lv := <span class="tk-fn">upgrade_level</span>(u)
+<span class="ln">338</span>        <span class="tk-kw">if</span> lv &gt; <span class="tk-num">0</span>:
+<span class="ln">339</span>            <span class="tk-kw">for</span> m <span class="tk-kw">in</span> u.modifiers:
+<span class="ln">340</span>                stats.<span class="tk-fn">add_modifier</span>(m, lv)</code></pre></div><!--/code-->
+<p>18 upgrade termasuk dua stat baru: <code>GREED</code> (pengali koin) dan <code>REVIVAL</code> (nyawa tambahan), ditambahkan <b>di akhir</b> <code>Stats.Id</code> sesuai aturan. Daftar upgrade dan hunter disusun di <code>data/meta.tres</code> (<code>MetaCatalog</code>), yang menentukan urutan tampil di layar.</p>
+
+<h3 id="bank">Membank run</h3>
+<div class="code" data-src="autoload/save_data.gd" data-lines="345-362"><div class="file"><span><b>autoload/save_data.gd</b> · baris 345–362</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">345</span><span class="tk-com">## End of a run (death, dawn, or leaving it): run coins go to the bank,</span>
+<span class="ln">346</span><span class="tk-com">## records update, record-based unlocks are checked. Saves immediately.</span>
+<span class="ln">347</span><span class="tk-kw">func</span> <span class="tk-fn">bank_run</span>(run_coins: <span class="tk-ty">int</span>, seconds: <span class="tk-ty">float</span>, kills: <span class="tk-ty">int</span>, survived_night: <span class="tk-ty">bool</span>) -&gt; RunReward:
+<span class="ln">348</span>    <span class="tk-kw">var</span> r := RunReward.<span class="tk-fn">new</span>()
+<span class="ln">349</span>    r.coins_banked = <span class="tk-fn">maxi</span>(<span class="tk-num">0</span>, run_coins)
+<span class="ln">350</span>    coins += r.coins_banked
+<span class="ln">351</span>    lifetime_coins += r.coins_banked
+<span class="ln">352</span>    runs += <span class="tk-num">1</span>
+<span class="ln">353</span>    total_kills += <span class="tk-fn">maxi</span>(<span class="tk-num">0</span>, kills)
+<span class="ln">354</span>    <span class="tk-kw">if</span> survived_night:
+<span class="ln">355</span>        nights_survived += <span class="tk-num">1</span>
+<span class="ln">356</span>    r.new_best_time = seconds &gt; best_time
+<span class="ln">357</span>    best_time = <span class="tk-fn">maxf</span>(best_time, seconds)
+<span class="ln">358</span>    r.new_unlocks = <span class="tk-fn">_check_unlocks</span>()
+<span class="ln">359</span>    r.total_coins = coins
+<span class="ln">360</span>    <span class="tk-fn">save_game</span>()
+<span class="ln">361</span>    changed.<span class="tk-fn">emit</span>()
+<span class="ln">362</span>    <span class="tk-kw">return</span> r</code></pre></div><!--/code-->
+<p>Game memanggil ini tepat sekali per run lewat <code>_end_run()</code> (mati, restart, atau keluar ke title). <code>RunReward</code> yang dikembalikan dibaca layar game over: "+N coins banked", "New longest night!", hunter yang baru terbuka.</p>
+
+<h2 id="hunter">Lima hunter</h2>
+<div class="code" data-src="characters/character_data.gd" data-to="^## .Survive 10:00"><div class="file"><span><b>characters/character_data.gd</b> · baris 1–30</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> CharacterData
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">Resource</span>
+<span class="ln"> 3</span><span class="tk-com">## A playable hunter: look, starting weapon, base stats and how it unlocks.</span>
+<span class="ln"> 4</span><span class="tk-com">## Listed in data/meta.tres (MetaCatalog); SaveData keeps which are unlocked.</span>
+<span class="ln"> 5</span>
+<span class="ln"> 6</span><span class="tk-com">## How a locked hunter is earned (int in .tres: append, never reorder).</span>
+<span class="ln"> 7</span><span class="tk-kw">enum</span> Unlock {
+<span class="ln"> 8</span>    FREE,             <span class="tk-com">## unlocked from the start</span>
+<span class="ln"> 9</span>    SURVIVE_SECONDS,  <span class="tk-com">## best single-run time &gt;= unlock_value seconds</span>
+<span class="ln">10</span>    TOTAL_KILLS,      <span class="tk-com">## lifetime kills &gt;= unlock_value</span>
+<span class="ln">11</span>    NIGHTS_SURVIVED,  <span class="tk-com">## runs that reached the final minute &gt;= unlock_value</span>
+<span class="ln">12</span>    BUY,              <span class="tk-com">## bought on the select screen for unlock_value coins</span>
+<span class="ln">13</span>}
+<span class="ln">14</span>
+<span class="ln">15</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> id: <span class="tk-ty">StringName</span>
+<span class="ln">16</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> display_name := <span class="tk-str">&quot;&quot;</span>
+<span class="ln">17</span><span class="tk-com">## One line under the name (&quot;Wandering hunter&quot;).</span>
+<span class="ln">18</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> epithet := <span class="tk-str">&quot;&quot;</span>
+<span class="ln">19</span><span class="tk-ann">@export_multiline</span> <span class="tk-kw">var</span> description := <span class="tk-str">&quot;&quot;</span>
+<span class="ln">20</span><span class="tk-com">## 4-frame walk cycle, 18x18 cells, facing right.</span>
+<span class="ln">21</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> sprite_sheet: <span class="tk-ty">Texture2D</span>
+<span class="ln">22</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> max_hp := <span class="tk-num">100.0</span>
+<span class="ln">23</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> move_speed := <span class="tk-num">5.0</span>
+<span class="ln">24</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> starting_weapon: WeaponData
+<span class="ln">25</span><span class="tk-com">## Character-specific bonuses on top of Stats.DEFAULT_BASE.</span>
+<span class="ln">26</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> stat_modifiers: <span class="tk-ty">Array</span>[StatModifier] = []
+<span class="ln">27</span>
+<span class="ln">28</span><span class="tk-ann">@export_group</span>(<span class="tk-str">&quot;Unlock&quot;</span>)
+<span class="ln">29</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> unlock := Unlock.FREE
+<span class="ln">30</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> unlock_value := <span class="tk-num">0</span></code></pre></div><!--/code-->
+<p>Hunter (Holy Aura, gratis), Sister Maud (Vesper Beads, gratis), Vesna Thorn (Silverthorn Knives, bertahan 10:00), Brother Odo (Hallowed Vial, 3000 kill total), Dame Ysolde (Pilgrim's Cross, rekrut 750 koin). Sheet jalan tiap hunter dibuat <code>gen_sprites.HUNTER_SHEETS</code>. Layar pilih hunter menampilkan potret berjalan dengan <code>AtlasTexture</code> yang region-nya digeser 8 kali per detik.</p>
+<p>Run memakai hunter terpilih lalu menerapkan toko, dalam urutan ini (bonus karakter dulu, toko di atasnya):</p>
+<div class="code" data-src="core/game.gd" data-from="var picked := SaveData.selected_character" data-to="player.died.connect"><div class="file"><span><b>core/game.gd</b> · baris 115–119</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">115</span>    <span class="tk-kw">var</span> picked := SaveData.<span class="tk-fn">selected_character</span>()
+<span class="ln">116</span>    <span class="tk-kw">if</span> picked != <span class="tk-kw">null</span>:
+<span class="ln">117</span>        character = picked
+<span class="ln">118</span>    player.<span class="tk-fn">setup</span>(character)
+<span class="ln">119</span>    SaveData.<span class="tk-fn">apply_upgrades</span>(player.stats)</code></pre></div><!--/code-->
+
+<h2 id="audio">Audio: bus, SoundBank, pool voice</h2>
+<div class="callout"><span class="tag">Konsep · audio bus</span><p>Bus adalah jalur campuran suara. Semua suara efek dikirim ke bus <code>SFX</code>, musik ke <code>BGM</code>, keduanya ke <code>Master</code>. Volume tiga slider di Options = volume tiga bus. Layout bus disimpan di <code>default_bus_layout.tres</code> (atur di panel Audio di bawah editor).</p></div>
+<div class="code" data-src="default_bus_layout.tres"><div class="file"><span><b>default_bus_layout.tres</b> · baris 1–15</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span>[gd_resource type=<span class="tk-str">&quot;AudioBusLayout&quot;</span> format=<span class="tk-num">3</span>]
+<span class="ln"> 2</span>
+<span class="ln"> 3</span>[resource]
+<span class="ln"> 4</span>bus/<span class="tk-num">1</span>/name = <span class="tk-ann">&amp;&quot;SFX&quot;</span>
+<span class="ln"> 5</span>bus/<span class="tk-num">1</span>/solo = <span class="tk-kw">false</span>
+<span class="ln"> 6</span>bus/<span class="tk-num">1</span>/mute = <span class="tk-kw">false</span>
+<span class="ln"> 7</span>bus/<span class="tk-num">1</span>/bypass_fx = <span class="tk-kw">false</span>
+<span class="ln"> 8</span>bus/<span class="tk-num">1</span>/volume_db = <span class="tk-num">0.0</span>
+<span class="ln"> 9</span>bus/<span class="tk-num">1</span>/send = <span class="tk-ann">&amp;&quot;Master&quot;</span>
+<span class="ln">10</span>bus/<span class="tk-num">2</span>/name = <span class="tk-ann">&amp;&quot;BGM&quot;</span>
+<span class="ln">11</span>bus/<span class="tk-num">2</span>/solo = <span class="tk-kw">false</span>
+<span class="ln">12</span>bus/<span class="tk-num">2</span>/mute = <span class="tk-kw">false</span>
+<span class="ln">13</span>bus/<span class="tk-num">2</span>/bypass_fx = <span class="tk-kw">false</span>
+<span class="ln">14</span>bus/<span class="tk-num">2</span>/volume_db = <span class="tk-num">0.0</span>
+<span class="ln">15</span>bus/<span class="tk-num">2</span>/send = <span class="tk-ann">&amp;&quot;Master&quot;</span></code></pre></div><!--/code-->
+<p>Setiap suara adalah <code>SoundDef</code> (Resource) di <code>data/sound_bank.tres</code>: beberapa variasi stream, volume, dan tiga batas.</p>
+<div class="code" data-src="audio/sound_def.gd"><div class="file"><span><b>audio/sound_def.gd</b> · baris 1–19</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> SoundDef
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">Resource</span>
+<span class="ln"> 3</span><span class="tk-com">## One named sound in the SoundBank (data/sound_bank.tres). Gameplay asks the</span>
+<span class="ln"> 4</span><span class="tk-com">## `Audio` autoload for an id; the limits here keep a 1000-enemy fight from</span>
+<span class="ln"> 5</span><span class="tk-com">## stacking hundreds of voices.</span>
+<span class="ln"> 6</span>
+<span class="ln"> 7</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> id: <span class="tk-ty">StringName</span>
+<span class="ln"> 8</span><span class="tk-com">## One is picked at random per play (variations). Music uses the first.</span>
+<span class="ln"> 9</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> streams: <span class="tk-ty">Array</span>[AudioStream] = []
+<span class="ln">10</span><span class="tk-ann">@export_range</span>(-<span class="tk-num">40.0</span>, <span class="tk-num">12.0</span>, <span class="tk-num">0.5</span>) <span class="tk-kw">var</span> volume_db := <span class="tk-num">0.0</span>
+<span class="ln">11</span><span class="tk-com">## Voices of this id playing at once; further plays are dropped.</span>
+<span class="ln">12</span><span class="tk-ann">@export_range</span>(<span class="tk-num">1</span>, <span class="tk-num">32</span>) <span class="tk-kw">var</span> max_concurrent := <span class="tk-num">4</span>
+<span class="ln">13</span><span class="tk-com">## Seconds after a play before this id can start again (dropped meanwhile).</span>
+<span class="ln">14</span><span class="tk-ann">@export_range</span>(<span class="tk-num">0.0</span>, <span class="tk-num">1.0</span>, <span class="tk-num">0.005</span>) <span class="tk-kw">var</span> min_interval := <span class="tk-num">0.03</span>
+<span class="ln">15</span><span class="tk-com">## Random pitch spread (0.05 = +-5%) unless the caller passes its own.</span>
+<span class="ln">16</span><span class="tk-ann">@export_range</span>(<span class="tk-num">0.0</span>, <span class="tk-num">0.5</span>, <span class="tk-num">0.01</span>) <span class="tk-kw">var</span> pitch_jitter := <span class="tk-num">0.05</span>
+<span class="ln">17</span><span class="tk-com">## With every voice busy, a sound may take over the oldest voice of an</span>
+<span class="ln">18</span><span class="tk-com">## equal or lower priority (UI and stingers &gt; pickups &gt; hits).</span>
+<span class="ln">19</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> priority := <span class="tk-num">0</span></code></pre></div><!--/code-->
+<p>Masalahnya: 600 kill per detik × suara "kill" = 600 suara per detik bertumpuk. Itu memakan CPU dan terdengar seperti dengung. <code>Audio.play_sfx</code> menerapkan tiga penyaring, dari yang paling murah:</p>
+<div class="code" data-src="autoload/audio.gd" data-from="^func play_sfx" data-to="^## Voices playing right now"><div class="file"><span><b>autoload/audio.gd</b> · baris 74–113</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 74</span><span class="tk-kw">func</span> <span class="tk-fn">play_sfx</span>(id: <span class="tk-ty">StringName</span>, at: <span class="tk-ty">Vector2</span> = <span class="tk-ty">Vector2</span>.INF, pitch_jitter: <span class="tk-ty">float</span> = -<span class="tk-num">1.0</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln"> 75</span>    <span class="tk-kw">var</span> now := Time.<span class="tk-fn">get_ticks_usec</span>()
+<span class="ln"> 76</span>    <span class="tk-kw">if</span> now &lt; _next_ok.<span class="tk-fn">get</span>(id, <span class="tk-num">0</span>):
+<span class="ln"> 77</span>        dropped += <span class="tk-num">1</span>
+<span class="ln"> 78</span>        <span class="tk-kw">return</span>
+<span class="ln"> 79</span>    <span class="tk-kw">var</span> <span class="tk-kw">def</span>: SoundDef = _defs.<span class="tk-fn">get</span>(id)
+<span class="ln"> 80</span>    <span class="tk-kw">if</span> <span class="tk-kw">def</span> == <span class="tk-kw">null</span> <span class="tk-kw">or</span> <span class="tk-kw">def</span>.streams.<span class="tk-fn">is_empty</span>():
+<span class="ln"> 81</span>        <span class="tk-kw">return</span>
+<span class="ln"> 82</span>    <span class="tk-kw">var</span> vol := <span class="tk-kw">def</span>.volume_db
+<span class="ln"> 83</span>    <span class="tk-kw">if</span> at.<span class="tk-fn">is_finite</span>():
+<span class="ln"> 84</span>        <span class="tk-kw">var</span> d := at.<span class="tk-fn">distance_to</span>(listener)
+<span class="ln"> 85</span>        <span class="tk-kw">if</span> d &gt; HEAR_RADIUS:
+<span class="ln"> 86</span>            <span class="tk-kw">return</span>
+<span class="ln"> 87</span>        vol += FAR_DB * d / HEAR_RADIUS
+<span class="ln"> 88</span>    <span class="tk-kw">var</span> same := <span class="tk-num">0</span>
+<span class="ln"> 89</span>    <span class="tk-kw">var</span> free := -<span class="tk-num">1</span>
+<span class="ln"> 90</span>    <span class="tk-kw">var</span> steal := -<span class="tk-num">1</span>
+<span class="ln"> 91</span>    <span class="tk-kw">for</span> k <span class="tk-kw">in</span> VOICES:
+<span class="ln"> 92</span>        <span class="tk-kw">if</span> _voices[k].playing:
+<span class="ln"> 93</span>            <span class="tk-kw">var</span> other := _voice_def[k]
+<span class="ln"> 94</span>            <span class="tk-kw">if</span> other == <span class="tk-kw">def</span>:
+<span class="ln"> 95</span>                same += <span class="tk-num">1</span>
+<span class="ln"> 96</span>            <span class="tk-kw">elif</span> other.priority &lt;= <span class="tk-kw">def</span>.priority <span class="tk-kw">and</span> (steal &lt; <span class="tk-num">0</span> <span class="tk-kw">or</span> _voice_start[k] &lt; _voice_start[steal]):
+<span class="ln"> 97</span>                steal = k
+<span class="ln"> 98</span>        <span class="tk-kw">elif</span> free &lt; <span class="tk-num">0</span>:
+<span class="ln"> 99</span>            free = k
+<span class="ln">100</span>    <span class="tk-kw">var</span> k := free <span class="tk-kw">if</span> free &gt;= <span class="tk-num">0</span> <span class="tk-kw">else</span> steal
+<span class="ln">101</span>    <span class="tk-kw">if</span> same &gt;= <span class="tk-kw">def</span>.max_concurrent <span class="tk-kw">or</span> k &lt; <span class="tk-num">0</span>:
+<span class="ln">102</span>        dropped += <span class="tk-num">1</span>
+<span class="ln">103</span>        <span class="tk-kw">return</span>
+<span class="ln">104</span>    _next_ok[id] = now + <span class="tk-ty">int</span>(<span class="tk-kw">def</span>.min_interval * <span class="tk-num">1.0e6</span>)
+<span class="ln">105</span>    <span class="tk-kw">var</span> p := _voices[k]
+<span class="ln">106</span>    p.stream = <span class="tk-kw">def</span>.streams[<span class="tk-fn">randi</span>() % <span class="tk-kw">def</span>.streams.<span class="tk-fn">size</span>()]
+<span class="ln">107</span>    p.volume_db = vol
+<span class="ln">108</span>    <span class="tk-kw">var</span> j := <span class="tk-kw">def</span>.pitch_jitter <span class="tk-kw">if</span> pitch_jitter &lt; <span class="tk-num">0.0</span> <span class="tk-kw">else</span> pitch_jitter
+<span class="ln">109</span>    p.pitch_scale = <span class="tk-num">1.0</span> + <span class="tk-fn">randf_range</span>(-j, j)
+<span class="ln">110</span>    p.<span class="tk-fn">play</span>()
+<span class="ln">111</span>    _voice_def[k] = <span class="tk-kw">def</span>
+<span class="ln">112</span>    _voice_start[k] = now
+<span class="ln">113</span>    played += <span class="tk-num">1</span></code></pre></div><!--/code-->
+<ol>
+  <li><b>Cooldown per id</b> (<code>min_interval</code>): satu lookup dictionary. Mayoritas permintaan berhenti di sini.</li>
+  <li><b>Jarak</b>: suara di luar 24 unit dari pemain tidak diputar; di dalamnya diredam linear sampai −10 dB.</li>
+  <li><b>Batas per id dan pool global</b>: 24 <code>AudioStreamPlayer</code> dibuat sekali. Kalau semua sibuk, suara baru mencuri voice <b>tertua</b> dengan prioritas sama atau lebih rendah (UI dan stinger &gt; pickup &gt; hit), kalau tidak ada, dibuang.</li>
+</ol>
+<div class="demo" data-demo="audio"></div>
+<p>Terukur di <code>ARCHITECTURE.md</code>: sekitar 670 kill/s menghasilkan ~3500 permintaan suara, 168 benar-benar diputar, puncak 5 voice. Musik memakai dua player di bus BGM yang di-crossfade linear oleh <code>play_music()</code>. Suara UI dipasang global: Audio menyambung <code>SceneTree.node_added</code> dan memberi setiap BaseButton suara <code>ui_select</code> saat ditekan, tanpa menyentuh satu pun scene UI.</p>
+<p>Suara placeholder dibuat <code>python tools/gen_audio.py</code> (pustaka standar saja, seeded): WAV 16-bit mono 22,05 kHz. Ganti dengan rekaman asli bernama sama, atau arahkan <code>streams</code> SoundDef ke file baru.</p>
+
+<h2 id="urutan-autoload">Urutan autoload</h2>
+<div class="code" data-src="project.godot" data-from="^\[autoload\]" data-to="^\[display\]"><div class="file"><span><b>project.godot</b> · baris 18–24</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">18</span>[autoload]
+<span class="ln">19</span>
+<span class="ln">20</span>_mcp_game_helper=<span class="tk-str">&quot;*res://addons/godot_ai/runtime/game_helper.gd&quot;</span>
+<span class="ln">21</span>SaveData=<span class="tk-str">&quot;*res://autoload/save_data.gd&quot;</span>
+<span class="ln">22</span>Audio=<span class="tk-str">&quot;*res://autoload/audio.gd&quot;</span>
+<span class="ln">23</span>Settings=<span class="tk-str">&quot;*res://autoload/settings.gd&quot;</span>
+<span class="ln">24</span>SceneFader=<span class="tk-str">&quot;*res://autoload/scene_fader.gd&quot;</span></code></pre></div><!--/code-->
+<p>SaveData harus pertama karena Settings membaca <code>SaveData.options</code> di <code>_ready</code>-nya. Audio sebelum Settings karena Settings menerapkan volume bus. SceneFader terakhir karena ia memulai fade-in scene pertama. (Di riwayat fase, baris <code>_mcp_game_helper</code> plugin godot_ai ada di paling atas; itu bukan bagian dari game.)</p>
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li>Mainkan satu run, kumpulkan koin, mati. Layar FALLEN menulis "+N coins banked". Title menampilkan total koin di kanan atas dan rekor di bawah.</li>
+    <li>Beli Might di Reliquary, mulai run: damage aura lebih besar. Refund All (tekan dua kali) mengembalikan semua koin.</li>
+    <li>Buka folder user data: ada <code>save.json</code> dan <code>save.json.bak</code>. Isi <code>save.json</code> dengan teks sembarang, jalankan game: progres dari .bak muncul, dan ada <code>save.json.corrupt</code>.</li>
+    <li>Dengan <kbd>F1</kbd> beberapa kali, suara kill tetap terdengar sebagai ritme, bukan dengung.</li>
+  </ul>
+</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>Progres hilang setelah ekspor.</b> Menyimpan ke <code>res://</code>. Gunakan <code>user://</code>.</li>
+    <li><b>Save lama crash setelah update.</b> Membaca field dengan <code>d["coins"]</code> tanpa cek; field yang hilang = error. Pakai <code>d.get()</code> + cek tipe.</li>
+    <li><b>Toko "memberi" stat dua kali.</b> <code>apply_upgrades</code> dipanggil di dua tempat, atau setelah restart Stats lama dipakai ulang. Stats dibuat baru per Player.</li>
+    <li><b>Tidak ada suara di web.</b> Browser hanya mengizinkan audio setelah interaksi pengguna; layar title yang meminta klik/tombol menyelesaikannya.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Tambahkan rekor "level tertinggi" ke save: default di <code>_reset()</code>, tulis di <code>_to_dict()</code>, baca dengan validasi di <code>_from_dict()</code>, perbarui di <code>bank_run()</code>. Perlu naik VERSION? Kenapa tidak?</li>
+    <li>Buat upgrade toko baru "Thick Skin" (+1 ARMOR flat, max 3, base_cost 200).</li>
+    <li>Ubah <code>max_concurrent</code> SoundDef <code>kill</code> ke 24 dan <code>min_interval</code> ke 0, lalu dengarkan 1000 musuh mati.</li>
+  </ol>
+</div>
+<nav class="pager" id="pager" aria-label="Halaman sebelumnya dan berikutnya"></nav>
+</article>
+</main>
+</div>
+<script src="assets/search-index.js?v=f641e385"></script>
+<script src="assets/site.js?v=3fa56380"></script>
+<script src="assets/demos.js?v=4520dcc1"></script>
+<script src="assets/demos-swarm.js?v=36474919"></script>
+<script src="assets/demos-systems.js?v=9a72b9ac"></script>
+</body>
+</html>

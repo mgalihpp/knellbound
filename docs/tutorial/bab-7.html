@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Bab 7 · UI, Tema dan Alur Layar</title>
+<meta name="description" content="Fase 7 Knellbound: Theme project-wide dengan StyleBoxTexture 9-slice dan variasi tipe, font bitmap buatan sendiri, HUD, pause dan options, ringkasan run, title, SceneFader, autoload Settings.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Pixelify+Sans:wght@500;600&display=swap">
+<link rel="stylesheet" href="assets/style.css?v=5213953b">
+<script>try{var t=JSON.parse(localStorage.getItem("kb-theme"));if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="bab-7">
+<header class="topbar">
+<button id="menu-btn" class="icon-btn" type="button" aria-label="Buka daftar bab"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Bab</button>
+<a class="brand" href="index.html">Knellbound <span>dari Nol</span></a>
+<span class="spacer"></span>
+<div class="search-wrap"><input id="search" type="search" placeholder="Cari… (tekan /)" aria-label="Cari di panduan" autocomplete="off"><div id="search-results" hidden></div></div>
+<button id="theme-btn" class="icon-btn" type="button" aria-label="Ganti tema"></button>
+<div class="progress-line"></div>
+</header>
+<div class="layout">
+<nav class="sidebar" id="sidebar" aria-label="Daftar bab"></nav>
+<main>
+<article class="article">
+<span class="eyebrow">Bab 7 · Fase 7 · commit 0c823de</span>
+<h1>UI, Tema dan Alur Layar</h1>
+<p class="lede">Sampai Fase 6 UI memakai tampilan default Godot. Fase 7 memberi seluruh game satu identitas visual lewat satu file Theme, menambah layar judul, menu pause dengan opsi, ringkasan run, dan transisi fade antar-scene.</p>
+<div class="goal"><span class="tag">Tujuan</span>Game dibuka di layar judul gotik. Start → (Fase 8: pilih hunter) → run. Esc membuka menu pause dengan statistik dan loadout. Options mengatur volume, shake, angka damage, fullscreen. Mati → layar "FALLEN" dengan damage per senjata. Semua pindah scene memudar ke hitam.</div>
+<div class="shots">
+  <figure><img src="assets/img/p7_title.webp" alt="Layar judul Knellbound: bulan darah, kuburan, menu Start, Reliquary, Options, Quit" width="1280" height="720" loading="lazy"><figcaption>Layar judul (HEAD).</figcaption></figure>
+  <figure><img src="assets/img/p7_pause.webp" alt="Menu pause: Resume, Options, Restart, Quit to Title, panel statistik dan loadout" width="1280" height="720" loading="lazy"><figcaption>Menu pause dengan statistik pemain dan loadout.</figcaption></figure>
+  <figure><img src="assets/img/p7_gameover.webp" alt="Layar FALLEN: waktu bertahan 10:47, level 6, 2614 kill, damage per senjata" width="1280" height="720" loading="lazy"><figcaption>Ringkasan run: damage per senjata dihitung di <code>damage_enemy(source)</code>.</figcaption></figure>
+  <figure><img src="assets/img/run_early.webp" alt="HUD lengkap: bar XP penuh lebar, HP, loadout, timer besar, kill dan koin" width="1280" height="720" loading="lazy"><figcaption>HUD Fase 7: bar XP selebar layar, HP, loadout, timer, kill, koin, HP bar di bawah pemain.</figcaption></figure>
+  <figure><img src="assets/img/head_levelup.webp" alt="Layar level up bertema: kartu Raven Feather, Silverthorn Knives LV 2, Sand Clock dengan badge dan pips" width="1280" height="720" loading="lazy"><figcaption>Layar level up setelah tema: kartu <code>Card</code> berisi OfferView (ikon, badge NEW/LV, pips). Bandingkan dengan versi Fase 2 di Bab 2.</figcaption></figure>
+  <figure><img src="assets/img/head_chest.webp" alt="Layar peti bertema menampilkan hadiah" width="1280" height="720" loading="lazy"><figcaption>ChestScreen bertema: baris OfferView di InsetPanel.</figcaption></figure>
+</div>
+
+<h2 id="theme">Theme: satu file untuk semua Control</h2>
+<div class="callout"><span class="tag">Konsep · Theme dan type variation</span><p><b>Theme</b> adalah Resource berisi gaya per tipe Control: warna font Label, StyleBox tombol untuk normal/hover/pressed/focus, dst. Jika dipasang di <span class="menu-path">Project Settings → GUI → Theme → Custom</span>, <b>semua</b> Control di game memakainya tanpa override satu per satu. <b>Type variation</b> adalah "subtipe" bernama, misalnya <code>TitleLabel</code> yang mewarisi Label tapi berukuran 72 dan berwarna emas. Di Inspector Label kamu tinggal isi <code>theme_type_variation = TitleLabel</code>.</p></div>
+<div class="code" data-src="ui/theme/game_theme.tres" data-from="^\[resource\]" data-to="^BadgeEvo"><div class="file"><span><b>ui/theme/game_theme.tres</b> · baris 318–320</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">318</span>[resource]
+<span class="ln">319</span>default_font = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;f_font&quot;</span>)
+<span class="ln">320</span>default_font_size = <span class="tk-num">24</span></code></pre></div><!--/code-->
+<div class="code" data-src="ui/theme/game_theme.tres" data-from="^TitleLabel/base_type"><div class="file"><span><b>ui/theme/game_theme.tres</b> · baris 421–429</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">421</span>TitleLabel/base_type = <span class="tk-ann">&amp;&quot;Label&quot;</span>
+<span class="ln">422</span>TitleLabel/colors/font_color = <span class="tk-ty">Color</span>(<span class="tk-num">0.914</span>, <span class="tk-num">0.725</span>, <span class="tk-num">0.286</span>, <span class="tk-num">1</span>)
+<span class="ln">423</span>TitleLabel/colors/font_shadow_color = <span class="tk-ty">Color</span>(<span class="tk-num">0.43</span>, <span class="tk-num">0.06</span>, <span class="tk-num">0.1</span>, <span class="tk-num">1</span>)
+<span class="ln">424</span>TitleLabel/constants/shadow_offset_x = <span class="tk-num">4</span>
+<span class="ln">425</span>TitleLabel/constants/shadow_offset_y = <span class="tk-num">4</span>
+<span class="ln">426</span>TitleLabel/font_sizes/font_size = <span class="tk-num">72</span>
+<span class="ln">427</span>XpBar/base_type = <span class="tk-ann">&amp;&quot;ProgressBar&quot;</span>
+<span class="ln">428</span>XpBar/styles/background = <span class="tk-fn">SubResource</span>(<span class="tk-str">&quot;sb_bar_frame&quot;</span>)
+<span class="ln">429</span>XpBar/styles/fill = <span class="tk-fn">SubResource</span>(<span class="tk-str">&quot;sb_bar_xp&quot;</span>)</code></pre></div><!--/code-->
+<p>Variasi yang tersedia: Label <code>TitleLabel</code> <code>HeaderLabel</code> <code>TimerLabel</code> <code>GoldLabel</code> <code>MutedLabel</code> <code>SmallLabel</code>; Button <code>Card</code>; PanelContainer <code>BloodPanel</code> <code>HolyPanel</code> <code>InsetPanel</code> + badge; Panel <code>SlotPanel</code> <code>SlotMax</code> <code>SlotEvo</code>; ProgressBar <code>XpBar</code> <code>HpBar</code> <code>BossBar</code>.</p>
+
+<h3 id="nine-slice">Panel 9-slice dari pixel art</h3>
+<p>Panel dan tombol adalah <b>StyleBoxTexture</b>: gambar kecil yang dipotong 9 bagian. Sudut tetap, sisi dan tengah meregang. <code>texture_margin</code> = lebar sudut dalam piksel tekstur; <code>content_margin</code> = jarak isi dari tepi.</p>
+<div class="code" data-src="ui/theme/game_theme.tres" data-from="^\[sub_resource type=.StyleBoxTexture. id=.sb_panel.\]" data-to="^\[sub_resource type=.StyleBoxTexture. id=.sb_panel_blood.\]"><div class="file"><span><b>ui/theme/game_theme.tres</b> · baris 35–44</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">35</span>[sub_resource type=<span class="tk-str">&quot;StyleBoxTexture&quot;</span> id=<span class="tk-str">&quot;sb_panel&quot;</span>]
+<span class="ln">36</span>content_margin_left = <span class="tk-num">22.0</span>
+<span class="ln">37</span>content_margin_top = <span class="tk-num">18.0</span>
+<span class="ln">38</span>content_margin_right = <span class="tk-num">22.0</span>
+<span class="ln">39</span>content_margin_bottom = <span class="tk-num">18.0</span>
+<span class="ln">40</span>texture = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;t_panel&quot;</span>)
+<span class="ln">41</span>texture_margin_left = <span class="tk-num">10.0</span>
+<span class="ln">42</span>texture_margin_top = <span class="tk-num">10.0</span>
+<span class="ln">43</span>texture_margin_right = <span class="tk-num">10.0</span>
+<span class="ln">44</span>texture_margin_bottom = <span class="tk-num">10.0</span></code></pre></div><!--/code-->
+<p>Art UI digenerate oleh <code>gen_sprites.ui_panels()</code> dengan aturan 1 piksel art = 2 piksel layar di 720p. Karena teksturnya digambar 2× lebih kecil dan diperbesar oleh StyleBox, margin di tema = margin art × 2.</p>
+<ol class="steps">
+  <li>Klik kanan <code>ui/theme/</code> → <span class="menu-path">Create New → Resource → Theme</span>, simpan <code>game_theme.tres</code>. Klik dua kali: panel Theme editor terbuka di bawah.</li>
+  <li><span class="menu-path">+ Add Type</span> → Button. Di tab StyleBox, isi <code>normal</code>/<code>hover</code>/<code>pressed</code>/<code>focus</code>/<code>disabled</code> dengan New StyleBoxTexture dan tekstur dari <code>art/ui/</code>.</li>
+  <li>Untuk variasi: Add Type <code>TitleLabel</code>, lalu di properti <b>Base Type</b> pilih Label.</li>
+  <li>Pasang di Project Settings → GUI → Theme → Custom.</li>
+</ol>
+
+<h3 id="font">Font bitmap buatan sendiri</h3>
+<p>Font adalah BMFont (<code>art/ui/font.fnt</code> + <code>font.png</code>) yang juga digenerate oleh <code>gen_sprites.font_sheet()</code>: desain 5×7 sendiri, huruf besar/kecil, angka, tanda baca, dan simbol <code>· — × →</code>, outline gelap 1 px sudah di-bake ke gambar. Keuntungan: tidak ada lisensi pihak ketiga, dan font pasti cocok dengan gaya pixel art.</p>
+<ul>
+  <li>Ukuran dasar 12. Di tab Import font, <code>scaling_mode = Integer</code>: hanya kelipatan bulat yang tajam. Pakai 12, 24, 48, 72.</li>
+  <li>Warna font = modulasi isi putih glyph, outline tetap gelap. Bayangan lewat <code>font_shadow_color</code> karena properti outline font tidak berlaku untuk bitmap font.</li>
+</ul>
+
+<h2 id="layout">Layout yang tahan ukuran layar</h2>
+<p>Stretch <code>canvas_items</code> + <code>expand</code> (Bab 0) menskalakan UI dari 1280×720. Di dalam scene, semua layar memakai <b>anchor</b> dan <b>container</b>, bukan posisi absolut: <code>CenterContainer</code> memusatkan panel, <code>VBoxContainer</code>/<code>HBoxContainer</code> menyusun anak dengan <code>separation</code>, <code>MarginContainer</code> memberi tepi. Saat jendela 21:9, panel tetap di tengah, HUD tetap di sudut.</p>
+<div class="callout"><span class="tag">Konsep · CanvasLayer</span><p>UI di game 3D diletakkan di <b>CanvasLayer</b>: lapisan 2D di atas viewport 3D yang tidak ikut kamera. Nomor <code>layer</code> menentukan urutan: HUD 1, LevelUpScreen 10, ChestScreen 11, PauseMenu dan GameOverScreen 20, SceneFader 128 (selalu paling atas).</p></div>
+
+<h2 id="hud">HUD hemat</h2>
+<p>HUD di-refresh dari <code>Game._process</code> (urutan tetap satu tempat). Memformat string tiap frame itu murah untuk 5 label, tapi mengganti <code>text</code> memicu perhitungan ulang layout. Jadi teks hanya ditulis ulang saat nilai bulatnya berubah:</p>
+<div class="code" data-src="ui/hud.gd" data-from="^func refresh" data-to="^func _refresh_boss"><div class="file"><span><b>ui/hud.gd</b> · baris 75–107</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 75</span><span class="tk-kw">func</span> <span class="tk-fn">refresh</span>(game: Game) -&gt; <span class="tk-kw">void</span>:
+<span class="ln"> 76</span>    <span class="tk-kw">var</span> p := game.player
+<span class="ln"> 77</span>    hp_bar.max_value = p.max_hp
+<span class="ln"> 78</span>    hp_bar.value = p.hp
+<span class="ln"> 79</span>    p.hp_bar.<span class="tk-fn">set_fraction</span>(p.hp / p.max_hp)
+<span class="ln"> 80</span>    <span class="tk-kw">var</span> hp_i := <span class="tk-fn">ceili</span>(p.hp)
+<span class="ln"> 81</span>    <span class="tk-kw">var</span> max_i := <span class="tk-fn">roundi</span>(p.max_hp)
+<span class="ln"> 82</span>    <span class="tk-kw">if</span> hp_i != _hp <span class="tk-kw">or</span> max_i != _max_hp:
+<span class="ln"> 83</span>        _hp = hp_i
+<span class="ln"> 84</span>        _max_hp = max_i
+<span class="ln"> 85</span>        hp_label.text = <span class="tk-str">&quot;%d/%d&quot;</span> % [hp_i, max_i]
+<span class="ln"> 86</span>    xp_bar.value = game.leveling.<span class="tk-fn">progress</span>()
+<span class="ln"> 87</span>    <span class="tk-kw">if</span> game.leveling.level != _level:
+<span class="ln"> 88</span>        _level = game.leveling.level
+<span class="ln"> 89</span>        level_label.text = <span class="tk-str">&quot;LV %d&quot;</span> % _level
+<span class="ln"> 90</span>    <span class="tk-kw">var</span> secs := <span class="tk-ty">int</span>(game.elapsed)
+<span class="ln"> 91</span>    <span class="tk-kw">if</span> secs != _seconds:
+<span class="ln"> 92</span>        _seconds = secs
+<span class="ln"> 93</span>        time_label.text = <span class="tk-fn">fmt_time</span>(secs)
+<span class="ln"> 94</span>    <span class="tk-kw">if</span> game.kills != _kills:
+<span class="ln"> 95</span>        _kills = game.kills
+<span class="ln"> 96</span>        kills_label.text = <span class="tk-fn">str</span>(_kills)
+<span class="ln"> 97</span>    <span class="tk-kw">if</span> game.coins != _coins:
+<span class="ln"> 98</span>        _coins = game.coins
+<span class="ln"> 99</span>        coins_label.text = <span class="tk-fn">str</span>(_coins)
+<span class="ln">100</span>    <span class="tk-fn">_refresh_boss</span>(game)
+<span class="ln">101</span>    <span class="tk-fn">_refresh_loadout</span>(p)
+<span class="ln">102</span>    <span class="tk-fn">_refresh_arrows</span>(game)
+<span class="ln">103</span>    <span class="tk-kw">if</span> debug_panel.visible:
+<span class="ln">104</span>        debug_label.text = <span class="tk-str">&quot;FPS %d   enemies %d   shots %d   projectiles %d\ngems %d   pickups %d   numbers %d   effects %d&quot;</span> % [
+<span class="ln">105</span>            <span class="tk-ty">Engine</span>.<span class="tk-fn">get_frames_per_second</span>(), game.swarm.count, game.enemy_shots.count,
+<span class="ln">106</span>            game.projectiles.count, game.gems.count, game.pickups.count,
+<span class="ln">107</span>            game.numbers.count, game.effects.count]</code></pre></div><!--/code-->
+<p>HP bar di bawah pemain adalah <code>WorldHpBar</code>: quad billboard dengan shader <code>world_bar.gdshader</code> tanpa depth test, dan parameter shader-nya hanya ditulis saat jumlah piksel isi berubah.</p>
+
+<h2 id="pause-menu">Menu pause dan Options</h2>
+<p>Semua layar mengikuti aturan Fase 2: view yang memancarkan sinyal. PauseMenu emit <code>resume_requested</code>, <code>restart_requested</code>, <code>quit_requested</code>; Game yang meng-unpause, membank koin, dan pindah scene.</p>
+<div class="code" data-src="core/game.gd" data-from="^func _set_paused" data-to="^func _apply_settings"><div class="file"><span><b>core/game.gd</b> · baris 268–290</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">268</span><span class="tk-kw">func</span> <span class="tk-fn">_set_paused</span>(on: <span class="tk-ty">bool</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">269</span>    <span class="tk-fn">get_tree</span>().paused = on
+<span class="ln">270</span>    <span class="tk-kw">if</span> on:
+<span class="ln">271</span>        pause_menu.<span class="tk-fn">open</span>(<span class="tk-kw">self</span>)
+<span class="ln">272</span>    <span class="tk-kw">else</span>:
+<span class="ln">273</span>        pause_menu.<span class="tk-fn">close</span>()
+<span class="ln">274</span>
+<span class="ln">275</span>
+<span class="ln">276</span><span class="tk-kw">func</span> <span class="tk-fn">restart</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">277</span>    <span class="tk-fn">_end_run</span>()
+<span class="ln">278</span>    SceneFader.<span class="tk-fn">reload</span>()
+<span class="ln">279</span>
+<span class="ln">280</span>
+<span class="ln">281</span><span class="tk-kw">func</span> <span class="tk-fn">quit_to_title</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">282</span>    <span class="tk-fn">_end_run</span>()
+<span class="ln">283</span>    SceneFader.<span class="tk-fn">change_scene</span>(<span class="tk-str">&quot;res://scenes/title.tscn&quot;</span>)
+<span class="ln">284</span>
+<span class="ln">285</span>
+<span class="ln">286</span><span class="tk-com">## Banks the run into SaveData exactly once (death, restart or quitting).</span>
+<span class="ln">287</span><span class="tk-kw">func</span> <span class="tk-fn">_end_run</span>() -&gt; RunReward:
+<span class="ln">288</span>    <span class="tk-kw">if</span> run_reward == <span class="tk-kw">null</span>:
+<span class="ln">289</span>        run_reward = SaveData.<span class="tk-fn">bank_run</span>(coins, elapsed, kills, director.final_phase)
+<span class="ln">290</span>    <span class="tk-kw">return</span> run_reward</code></pre></div><!--/code-->
+<p><code>OptionsPanel</code> dipakai di dua tempat (title dan pause), jadi ia scene sendiri yang di-instance dua kali. Ia tidak menyimpan apa pun: ia memanggil setter di autoload <code>Settings</code>.</p>
+
+<h2 id="autoload">Autoload: Settings dan SceneFader</h2>
+<div class="callout"><span class="tag">Konsep · autoload (singleton)</span><p>Autoload adalah node yang Godot buat sekali saat game mulai dan letakkan di <code>/root</code>, di luar scene yang sedang aktif. Ia bertahan saat scene diganti dan bisa diakses dari mana saja dengan namanya (<code>Settings.screen_shake</code>). Daftarkan di <span class="menu-path">Project Settings → Globals → Autoload</span>: pilih skrip, beri nama, Add. Urutan di daftar = urutan <code>_ready</code>, dan itu penting di Fase 8.</p></div>
+<div class="code" data-src="autoload/settings.gd" data-from="^signal changed" data-to="^func _load"><div class="file"><span><b>autoload/settings.gd</b> · baris 8–55</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 8</span><span class="tk-kw">signal</span> changed
+<span class="ln"> 9</span>
+<span class="ln">10</span><span class="tk-kw">const</span> BUSES := [<span class="tk-ann">&amp;&quot;Master&quot;</span>, <span class="tk-ann">&amp;&quot;SFX&quot;</span>, <span class="tk-ann">&amp;&quot;BGM&quot;</span>]
+<span class="ln">11</span>
+<span class="ln">12</span><span class="tk-com">## Linear 0..1, indexed like BUSES.</span>
+<span class="ln">13</span><span class="tk-kw">var</span> volumes: <span class="tk-ty">Array</span>[<span class="tk-ty">float</span>] = [<span class="tk-num">1.0</span>, <span class="tk-num">0.8</span>, <span class="tk-num">0.7</span>]
+<span class="ln">14</span><span class="tk-kw">var</span> screen_shake := <span class="tk-kw">true</span>
+<span class="ln">15</span><span class="tk-kw">var</span> damage_numbers := <span class="tk-kw">true</span>
+<span class="ln">16</span><span class="tk-kw">var</span> fullscreen := <span class="tk-kw">false</span>
+<span class="ln">17</span>
+<span class="ln">18</span>
+<span class="ln">19</span><span class="tk-kw">func</span> <span class="tk-fn">_ready</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">20</span>    process_mode = <span class="tk-ty">Node</span>.PROCESS_MODE_ALWAYS
+<span class="ln">21</span>    <span class="tk-fn">_load</span>()
+<span class="ln">22</span>    <span class="tk-fn">_apply</span>()
+<span class="ln">23</span>
+<span class="ln">24</span>
+<span class="ln">25</span><span class="tk-kw">func</span> <span class="tk-fn">set_volume</span>(bus: <span class="tk-ty">int</span>, linear: <span class="tk-ty">float</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">26</span>    volumes[bus] = <span class="tk-fn">clampf</span>(linear, <span class="tk-num">0.0</span>, <span class="tk-num">1.0</span>)
+<span class="ln">27</span>    <span class="tk-fn">_apply_bus</span>(bus)
+<span class="ln">28</span>    <span class="tk-fn">_save_and_emit</span>()
+<span class="ln">29</span>
+<span class="ln">30</span>
+<span class="ln">31</span><span class="tk-kw">func</span> <span class="tk-fn">set_screen_shake</span>(on: <span class="tk-ty">bool</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">32</span>    screen_shake = on
+<span class="ln">33</span>    <span class="tk-fn">_save_and_emit</span>()
+<span class="ln">34</span>
+<span class="ln">35</span>
+<span class="ln">36</span><span class="tk-kw">func</span> <span class="tk-fn">set_damage_numbers</span>(on: <span class="tk-ty">bool</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">37</span>    damage_numbers = on
+<span class="ln">38</span>    <span class="tk-fn">_save_and_emit</span>()
+<span class="ln">39</span>
+<span class="ln">40</span>
+<span class="ln">41</span><span class="tk-kw">func</span> <span class="tk-fn">set_fullscreen</span>(on: <span class="tk-ty">bool</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">42</span>    fullscreen = on
+<span class="ln">43</span>    <span class="tk-fn">_apply_window</span>()
+<span class="ln">44</span>    <span class="tk-fn">_save_and_emit</span>()
+<span class="ln">45</span>
+<span class="ln">46</span>
+<span class="ln">47</span><span class="tk-kw">func</span> <span class="tk-fn">_save_and_emit</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">48</span>    <span class="tk-kw">var</span> o := SaveData.options
+<span class="ln">49</span>    <span class="tk-kw">for</span> k <span class="tk-kw">in</span> BUSES.<span class="tk-fn">size</span>():
+<span class="ln">50</span>        o[<span class="tk-str">&quot;volume_&quot;</span> + <span class="tk-ty">String</span>(BUSES[k]).<span class="tk-fn">to_lower</span>()] = volumes[k]
+<span class="ln">51</span>    o[<span class="tk-str">&quot;screen_shake&quot;</span>] = screen_shake
+<span class="ln">52</span>    o[<span class="tk-str">&quot;damage_numbers&quot;</span>] = damage_numbers
+<span class="ln">53</span>    o[<span class="tk-str">&quot;fullscreen&quot;</span>] = fullscreen
+<span class="ln">54</span>    SaveData.<span class="tk-fn">queue_save</span>()
+<span class="ln">55</span>    changed.<span class="tk-fn">emit</span>()</code></pre></div><!--/code-->
+<p>Settings memancarkan <code>changed</code>; Game menyambungkannya ke <code>_apply_settings()</code> yang meneruskan dua opsi gameplay ke CameraRig dan DamageNumberField. Volume diterapkan langsung ke bus audio (<code>AudioServer.set_bus_volume_db</code>). Di Fase 7 nilai disimpan di <code>user://settings.cfg</code>; Fase 8 memindahkannya ke dalam save.</p>
+<p><code>SceneFader</code> adalah autoload CanvasLayer berisi satu ColorRect hitam. Semua pergantian scene lewat sini:</p>
+<div class="code" data-src="autoload/scene_fader.gd"><div class="file"><span><b>autoload/scene_fader.gd</b> · baris 1–58</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">extends</span> <span class="tk-ty">CanvasLayer</span>
+<span class="ln"> 2</span><span class="tk-com">## Autoload `SceneFader`: every scene change goes through here so it fades to</span>
+<span class="ln"> 3</span><span class="tk-com">## black, swaps the scene (unpausing the tree), then fades back in. Input is</span>
+<span class="ln"> 4</span><span class="tk-com">## blocked while a fade runs, so a double press cannot start two changes.</span>
+<span class="ln"> 5</span>
+<span class="ln"> 6</span><span class="tk-kw">const</span> FADE_OUT := <span class="tk-num">0.22</span>
+<span class="ln"> 7</span><span class="tk-kw">const</span> FADE_IN := <span class="tk-num">0.3</span>
+<span class="ln"> 8</span>
+<span class="ln"> 9</span><span class="tk-kw">var</span> busy := <span class="tk-kw">false</span>
+<span class="ln">10</span>
+<span class="ln">11</span><span class="tk-kw">var</span> _rect := ColorRect.<span class="tk-fn">new</span>()
+<span class="ln">12</span>
+<span class="ln">13</span>
+<span class="ln">14</span><span class="tk-kw">func</span> <span class="tk-fn">_ready</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">15</span>    layer = <span class="tk-num">128</span>
+<span class="ln">16</span>    process_mode = <span class="tk-ty">Node</span>.PROCESS_MODE_ALWAYS
+<span class="ln">17</span>    _rect.color = <span class="tk-ty">Color</span>(<span class="tk-num">0.02</span>, <span class="tk-num">0.01</span>, <span class="tk-num">0.04</span>, <span class="tk-num">1.0</span>)
+<span class="ln">18</span>    _rect.<span class="tk-fn">set_anchors_and_offsets_preset</span>(<span class="tk-ty">Control</span>.PRESET_FULL_RECT)
+<span class="ln">19</span>    _rect.mouse_filter = <span class="tk-ty">Control</span>.MOUSE_FILTER_IGNORE
+<span class="ln">20</span>    <span class="tk-fn">add_child</span>(_rect)
+<span class="ln">21</span>    <span class="tk-com"># The first scene fades in from black too.</span>
+<span class="ln">22</span>    <span class="tk-fn">_fade_in</span>()
+<span class="ln">23</span>
+<span class="ln">24</span>
+<span class="ln">25</span><span class="tk-kw">func</span> <span class="tk-fn">change_scene</span>(path: <span class="tk-ty">String</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">26</span>    <span class="tk-kw">if</span> busy:
+<span class="ln">27</span>        <span class="tk-kw">return</span>
+<span class="ln">28</span>    busy = <span class="tk-kw">true</span>
+<span class="ln">29</span>    _rect.mouse_filter = <span class="tk-ty">Control</span>.MOUSE_FILTER_STOP
+<span class="ln">30</span>    <span class="tk-kw">var</span> t := <span class="tk-fn">create_tween</span>()
+<span class="ln">31</span>    t.<span class="tk-fn">tween_property</span>(_rect, <span class="tk-str">&quot;color:a&quot;</span>, <span class="tk-num">1.0</span>, FADE_OUT)
+<span class="ln">32</span>    <span class="tk-kw">await</span> t.finished
+<span class="ln">33</span>    <span class="tk-fn">get_tree</span>().paused = <span class="tk-kw">false</span>
+<span class="ln">34</span>    <span class="tk-fn">get_tree</span>().<span class="tk-fn">change_scene_to_file</span>(path)
+<span class="ln">35</span>    <span class="tk-com"># change_scene_to_file swaps at the end of the frame: wait for the new one.</span>
+<span class="ln">36</span>    <span class="tk-kw">await</span> <span class="tk-fn">get_tree</span>().scene_changed
+<span class="ln">37</span>    <span class="tk-fn">_fade_in</span>()
+<span class="ln">38</span>
+<span class="ln">39</span>
+<span class="ln">40</span><span class="tk-kw">func</span> <span class="tk-fn">reload</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">41</span>    <span class="tk-fn">change_scene</span>(<span class="tk-fn">get_tree</span>().current_scene.scene_file_path)
+<span class="ln">42</span>
+<span class="ln">43</span>
+<span class="ln">44</span><span class="tk-kw">func</span> <span class="tk-fn">_fade_in</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">45</span>    busy = <span class="tk-kw">true</span>
+<span class="ln">46</span>    _rect.mouse_filter = <span class="tk-ty">Control</span>.MOUSE_FILTER_STOP
+<span class="ln">47</span>    _rect.color.a = <span class="tk-num">1.0</span>
+<span class="ln">48</span>    <span class="tk-kw">var</span> t := <span class="tk-fn">create_tween</span>()
+<span class="ln">49</span>    t.<span class="tk-fn">tween_property</span>(_rect, <span class="tk-str">&quot;color:a&quot;</span>, <span class="tk-num">0.0</span>, FADE_IN)
+<span class="ln">50</span>    <span class="tk-kw">await</span> t.finished
+<span class="ln">51</span>    _rect.mouse_filter = <span class="tk-ty">Control</span>.MOUSE_FILTER_IGNORE
+<span class="ln">52</span>    busy = <span class="tk-kw">false</span>
+<span class="ln">53</span>
+<span class="ln">54</span>
+<span class="ln">55</span><span class="tk-kw">func</span> <span class="tk-fn">_input</span>(event: InputEvent) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">56</span>    <span class="tk-com"># Swallow input while fading so nothing reacts mid-transition.</span>
+<span class="ln">57</span>    <span class="tk-kw">if</span> busy <span class="tk-kw">and</span> <span class="tk-kw">not</span> (event <span class="tk-kw">is</span> InputEventMouseMotion):
+<span class="ln">58</span>        <span class="tk-fn">get_viewport</span>().<span class="tk-fn">set_input_as_handled</span>()</code></pre></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">await</b><code>await t.finished</code> menunggu tween selesai tanpa memblokir game. Fungsi berlanjut di frame tween selesai. Ini coroutine GDScript.</li>
+  <li><b class="ln">paused</b>Tree di-unpause sebelum ganti scene. Kalau tidak, scene baru (mis. title dari menu pause) lahir dalam keadaan pause.</li>
+  <li><b class="ln">scene_changed</b><code>change_scene_to_file</code> menukar scene di akhir frame; menunggu sinyal <code>scene_changed</code> memastikan fade-in dimulai saat scene baru sudah ada.</li>
+  <li><b class="ln">_input</b>Selama fade, input ditelan. Klik ganda pada "Retry" tidak memulai dua pergantian.</li>
+</ul>
+
+<h2 id="alur-scene">Alur scene</h2>
+<div class="diagram">
+<svg viewBox="0 0 820 230" role="img" aria-label="Alur scene: title, pilih hunter, run, toko">
+  <defs><marker id="ah7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="muted"></path></marker></defs>
+  <rect x="20" y="80" width="150" height="60" rx="6" class="box-gold"></rect><text x="95" y="106" text-anchor="middle" font-weight="700">title.tscn</text><text x="95" y="126" text-anchor="middle" font-size="11" class="muted">main scene</text>
+  <rect x="250" y="20" width="190" height="60" rx="6" class="box"></rect><text x="345" y="46" text-anchor="middle" font-weight="700">character_select.tscn</text><text x="345" y="66" text-anchor="middle" font-size="11" class="muted">Fase 8</text>
+  <rect x="520" y="80" width="150" height="60" rx="6" class="box-hot"></rect><text x="595" y="106" text-anchor="middle" font-weight="700">main.tscn</text><text x="595" y="126" text-anchor="middle" font-size="11" class="muted">Game (run)</text>
+  <rect x="250" y="150" width="190" height="60" rx="6" class="box"></rect><text x="345" y="176" text-anchor="middle" font-weight="700">shop.tscn</text><text x="345" y="196" text-anchor="middle" font-size="11" class="muted">Reliquary, Fase 8</text>
+  <path d="M170,100 L248,58" class="arrow" marker-end="url(#ah7)"></path><text x="190" y="66" font-size="11" class="muted">Start</text>
+  <path d="M440,58 L518,96" class="arrow" marker-end="url(#ah7)"></path><text x="470" y="62" font-size="11" class="muted">pilih hunter</text>
+  <path d="M170,124 L248,170" class="arrow" marker-end="url(#ah7)"></path><text x="166" y="166" font-size="11" class="muted">Reliquary</text>
+  <path d="M250,192 C200,200 140,170 120,142" class="arrow" marker-end="url(#ah7)"></path><text x="150" y="214" font-size="11" class="muted">Back</text>
+  <path d="M595,140 C595,220 120,230 95,142" class="arrow" stroke-dasharray="5 4" marker-end="url(#ah7)"></path><text x="560" y="214" font-size="11" class="muted">Quit to Title / Title</text>
+  <path d="M670,100 C760,60 760,150 672,122" class="arrow" marker-end="url(#ah7)"></path><text x="700" y="80" font-size="11" class="muted">Restart / Retry</text>
+</svg>
+</div>
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li>Game dibuka di title; semua tombol bisa dipilih dengan mouse, panah + Enter, dan gamepad.</li>
+    <li>Esc saat run: menu pause muncul, dunia berhenti; Options → geser volume SFX, matikan screen shake, kembali, bom tidak lagi menggetarkan layar.</li>
+    <li>Mati: layar FALLEN dengan statistik; <kbd>R</kbd> = retry; setiap pindah scene memudar.</li>
+    <li>Ubah ukuran jendela menjadi sangat lebar atau tinggi: panel tetap di tengah, HUD di sudut.</li>
+  </ul>
+</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>Font buram.</b> Ukuran bukan kelipatan 12, atau filter canvas tidak nearest.</li>
+    <li><b>Tombol tidak bisa dipilih dengan keyboard.</b> Tidak ada yang memanggil <code>grab_focus()</code> saat layar dibuka, atau tetangga fokus salah. LevelUpScreen menetapkan <code>focus_neighbor_*</code> eksplisit karena kartu lebar "mencuri" navigasi kiri-kanan.</li>
+    <li><b>Scene baru langsung beku.</b> Pindah scene dari keadaan pause tanpa <code>get_tree().paused = false</code>.</li>
+    <li><b>Autoload belum siap.</b> Settings membaca SaveData di <code>_ready</code>; jika SaveData terdaftar di bawah Settings, datanya masih kosong.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Buat type variation <code>WarningLabel</code> (Label, oranye, ukuran 24) di tema dan pakai untuk teks "Boss incoming" sementara.</li>
+    <li>Tambahkan opsi "Tampilkan FPS" ke OptionsPanel dan Settings, simpan seperti opsi lain.</li>
+    <li>Ganti durasi <code>FADE_OUT</code> SceneFader ke 1 detik dan rasakan kenapa transisi pendek lebih baik untuk tombol Retry.</li>
+  </ol>
+</div>
+<nav class="pager" id="pager" aria-label="Halaman sebelumnya dan berikutnya"></nav>
+</article>
+</main>
+</div>
+<script src="assets/search-index.js?v=f641e385"></script>
+<script src="assets/site.js?v=3fa56380"></script>
+<script src="assets/demos.js?v=4520dcc1"></script>
+<script src="assets/demos-swarm.js?v=36474919"></script>
+<script src="assets/demos-systems.js?v=9a72b9ac"></script>
+</body>
+</html>

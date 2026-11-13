@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Bab 6 · Pickup, Pecahan dan Game Feel</title>
+<meta name="description" content="Fase 6 Knellbound: pickup sebagai Resource, DropTable dengan LUCK, objek pecahan sebagai slot swarm, angka damage satu instance per angka, efek kill, screen shake, hit-stop.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Pixelify+Sans:wght@500;600&display=swap">
+<link rel="stylesheet" href="assets/style.css?v=5213953b">
+<script>try{var t=JSON.parse(localStorage.getItem("kb-theme"));if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="bab-6">
+<header class="topbar">
+<button id="menu-btn" class="icon-btn" type="button" aria-label="Buka daftar bab"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Bab</button>
+<a class="brand" href="index.html">Knellbound <span>dari Nol</span></a>
+<span class="spacer"></span>
+<div class="search-wrap"><input id="search" type="search" placeholder="Cari… (tekan /)" aria-label="Cari di panduan" autocomplete="off"><div id="search-results" hidden></div></div>
+<button id="theme-btn" class="icon-btn" type="button" aria-label="Ganti tema"></button>
+<div class="progress-line"></div>
+</header>
+<div class="layout">
+<nav class="sidebar" id="sidebar" aria-label="Daftar bab"></nav>
+<main>
+<article class="article">
+<span class="eyebrow">Bab 6 · Fase 6 · commit 464f917</span>
+<h1>Pickup, Pecahan dan Game Feel</h1>
+<p class="lede">Game sudah bisa dimainkan; Fase 6 membuatnya terasa enak. Angka damage, ledakan darah, getaran layar, beku sesaat saat bom meledak. Juga makanan, magnet, bom, koin, dan lentera yang bisa dihancurkan, semuanya sebagai data.</p>
+<div class="goal"><span class="tag">Tujuan</span>Lentera, anglo, peti kayu, dan salib nisan muncul di sekitar pemain dan bisa dihancurkan oleh senjata apa pun. Musuh kadang menjatuhkan roti, ayam panggang, magnet, bom, atau koin. Setiap hit memunculkan angka; crit berwarna kuning menyala. Bom menggetarkan layar dan membekukan dunia sesaat.</div>
+<div class="shots">
+  <figure><img src="assets/img/p6_pickups.webp" alt="Fase 6: lentera, anglo, peti kayu, salib nisan di depan pemain dan deretan pickup roti, ayam, magnet, bom, koin" width="1280" height="720" loading="lazy"><figcaption>Fase 6: objek pecahan (debug <kbd>B</kbd>) dan semua jenis pickup (debug <kbd>4</kbd>–<kbd>9</kbd>).</figcaption></figure>
+  <figure><img src="assets/img/p6_numbers.webp" alt="Fase 6: kolam emas, salib, pisau, angka damage di atas musuh" width="1280" height="720" loading="lazy"><figcaption>Angka damage dan efek kill di tengah pertarungan.</figcaption></figure>
+</div>
+
+<h2 id="pickup-data">Pickup sebagai data</h2>
+<p>Fase 4 punya satu jenis pickup (peti) yang ditandai dengan angka. Fase 6 menjadikannya Resource:</p>
+<div class="code" data-src="pickups/pickup_data.gd"><div class="file"><span><b>pickups/pickup_data.gd</b> · baris 1–31</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> PickupData
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">Resource</span>
+<span class="ln"> 3</span><span class="tk-com">## One kind of world pickup (data/pickups/*.tres). PickupField draws and</span>
+<span class="ln"> 4</span><span class="tk-com">## collects it; Game._on_pickup() applies `effect`. A new pickup = a .tres +</span>
+<span class="ln"> 5</span><span class="tk-com">## a row in art/sprites/pickups.png (+ an Effect branch if it does something new)</span>
+<span class="ln"> 6</span><span class="tk-com">## + an entry in PickupField.types (main.tscn) and in a DropTable.</span>
+<span class="ln"> 7</span>
+<span class="ln"> 8</span><span class="tk-com">## Stored as int in .tres: append only.</span>
+<span class="ln"> 9</span><span class="tk-kw">enum</span> Effect {
+<span class="ln">10</span>    CHEST,   <span class="tk-com">## opens the chest screen (Game.pending_chests)</span>
+<span class="ln">11</span>    HEAL,    <span class="tk-com">## heals `amount` x max HP</span>
+<span class="ln">12</span>    MAGNET,  <span class="tk-com">## every gem (and magnetic pickup) flies to the player</span>
+<span class="ln">13</span>    BOMB,    <span class="tk-com">## `amount` x wave HP scale to every enemy in Game.bomb_radius (bosses less)</span>
+<span class="ln">14</span>    COIN,    <span class="tk-com">## +`amount` coins (Game.coins, kept by the meta shop in phase 8)</span>
+<span class="ln">15</span>}
+<span class="ln">16</span>
+<span class="ln">17</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> id: <span class="tk-ty">StringName</span>
+<span class="ln">18</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> display_name := <span class="tk-str">&quot;&quot;</span>
+<span class="ln">19</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> effect := Effect.HEAL
+<span class="ln">20</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> amount := <span class="tk-num">0.0</span>
+<span class="ln">21</span><span class="tk-com">## Row in art/sprites/pickups.png (4 frames: shine / spin).</span>
+<span class="ln">22</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> sprite_row := <span class="tk-num">0</span>
+<span class="ln">23</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> scale := <span class="tk-num">1.0</span>
+<span class="ln">24</span><span class="tk-com">## Relative weight inside a DropTable.</span>
+<span class="ln">25</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> drop_weight := <span class="tk-num">1.0</span>
+<span class="ln">26</span><span class="tk-com">## Weight is multiplied by LUCK (rare finds get likelier).</span>
+<span class="ln">27</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> luck_weighted := <span class="tk-kw">false</span>
+<span class="ln">28</span><span class="tk-com">## Pulled in by the player&#x27;s magnet radius like gems, and by MAGNET pickups.</span>
+<span class="ln">29</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> magnetic := <span class="tk-kw">false</span>
+<span class="ln">30</span><span class="tk-com">## Row in art/sprites/effects.png played where it is collected (-1 = none).</span>
+<span class="ln">31</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> collect_effect := <span class="tk-num">4</span></code></pre></div><!--/code-->
+<p>Ada 7 file di <code>data/pickups/</code>. Efeknya diterapkan di satu tempat, <code>Game._on_pickup</code>, karena efek menyentuh banyak sistem (pemain, gem, swarm, kamera):</p>
+<div class="code" data-src="core/game.gd" data-from="^func _on_pickup" data-to="^## Run coins, scaled by GREED"><div class="file"><span><b>core/game.gd</b> · baris 422–441</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">422</span><span class="tk-kw">func</span> <span class="tk-fn">_on_pickup</span>(data: PickupData, at: <span class="tk-ty">Vector2</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">423</span>    effects.<span class="tk-fn">spawn</span>(at, data.collect_effect, <span class="tk-num">1.0</span>, <span class="tk-num">0.35</span>, <span class="tk-num">0.2</span>)
+<span class="ln">424</span>    <span class="tk-kw">match</span> data.effect:
+<span class="ln">425</span>        PickupData.Effect.CHEST:
+<span class="ln">426</span>            pending_chests += <span class="tk-num">1</span>
+<span class="ln">427</span>            Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;pickup&quot;</span>)
+<span class="ln">428</span>        PickupData.Effect.HEAL:
+<span class="ln">429</span>            <span class="tk-kw">var</span> before := player.hp
+<span class="ln">430</span>            player.<span class="tk-fn">heal</span>(player.max_hp * data.amount)
+<span class="ln">431</span>            numbers.<span class="tk-fn">add</span>(player.pos2, player.hp - before, DamageNumberField.HEAL)
+<span class="ln">432</span>            Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;heal&quot;</span>)
+<span class="ln">433</span>        PickupData.Effect.MAGNET:
+<span class="ln">434</span>            gems.<span class="tk-fn">attract_all</span>()
+<span class="ln">435</span>            pickups.<span class="tk-fn">attract_all</span>()
+<span class="ln">436</span>            Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;pickup&quot;</span>)
+<span class="ln">437</span>        PickupData.Effect.BOMB:
+<span class="ln">438</span>            <span class="tk-fn">detonate_bomb</span>(player.pos2, data.amount * director.<span class="tk-fn">hp_scale</span>())
+<span class="ln">439</span>        PickupData.Effect.COIN:
+<span class="ln">440</span>            <span class="tk-fn">add_coins</span>(data.amount)
+<span class="ln">441</span>            Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;coin&quot;</span>)</code></pre></div><!--/code-->
+<p><code>PickupField.tick()</code> tidak menerapkan apa pun: ia mengembalikan <b>indeks jenis</b> yang terkumpul dan posisinya. Alasan yang sama seperti layar = view: sistem dunia tidak memutuskan aturan game.</p>
+
+<h3 id="drop-table">DropTable dan LUCK</h3>
+<div class="code" data-src="pickups/drop_table.gd"><div class="file"><span><b>pickups/drop_table.gd</b> · baris 1–27</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> DropTable
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">Resource</span>
+<span class="ln"> 3</span><span class="tk-com">## Weighted pickup roll (data/drops/*.tres): `chance` (x LUCK) that anything</span>
+<span class="ln"> 4</span><span class="tk-com">## drops, then one of `items` by PickupData.drop_weight (x LUCK for</span>
+<span class="ln"> 5</span><span class="tk-com">## luck_weighted items).</span>
+<span class="ln"> 6</span>
+<span class="ln"> 7</span><span class="tk-ann">@export_range</span>(<span class="tk-num">0.0</span>, <span class="tk-num">1.0</span>, <span class="tk-num">0.0001</span>) <span class="tk-kw">var</span> chance := <span class="tk-num">0.01</span>
+<span class="ln"> 8</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> items: <span class="tk-ty">Array</span>[PickupData] = []
+<span class="ln"> 9</span>
+<span class="ln">10</span>
+<span class="ln">11</span><span class="tk-com">## A pickup to drop, or null.</span>
+<span class="ln">12</span><span class="tk-kw">func</span> <span class="tk-fn">roll</span>(luck: <span class="tk-ty">float</span>) -&gt; PickupData:
+<span class="ln">13</span>    <span class="tk-kw">if</span> items.<span class="tk-fn">is_empty</span>() <span class="tk-kw">or</span> <span class="tk-fn">randf</span>() &gt;= chance * luck:
+<span class="ln">14</span>        <span class="tk-kw">return</span> <span class="tk-kw">null</span>
+<span class="ln">15</span>    <span class="tk-kw">var</span> total := <span class="tk-num">0.0</span>
+<span class="ln">16</span>    <span class="tk-kw">for</span> it <span class="tk-kw">in</span> items:
+<span class="ln">17</span>        total += <span class="tk-fn">_weight</span>(it, luck)
+<span class="ln">18</span>    <span class="tk-kw">var</span> r := <span class="tk-fn">randf</span>() * total
+<span class="ln">19</span>    <span class="tk-kw">for</span> it <span class="tk-kw">in</span> items:
+<span class="ln">20</span>        r -= <span class="tk-fn">_weight</span>(it, luck)
+<span class="ln">21</span>        <span class="tk-kw">if</span> r &lt; <span class="tk-num">0.0</span>:
+<span class="ln">22</span>            <span class="tk-kw">return</span> it
+<span class="ln">23</span>    <span class="tk-kw">return</span> items[-<span class="tk-num">1</span>]
+<span class="ln">24</span>
+<span class="ln">25</span>
+<span class="ln">26</span><span class="tk-kw">static</span> <span class="tk-kw">func</span> <span class="tk-fn">_weight</span>(it: PickupData, luck: <span class="tk-ty">float</span>) -&gt; <span class="tk-ty">float</span>:
+<span class="ln">27</span>    <span class="tk-kw">return</span> it.drop_weight * (luck <span class="tk-kw">if</span> it.luck_weighted <span class="tk-kw">else</span> <span class="tk-num">1.0</span>)</code></pre></div><!--/code-->
+<p>Dua tahap: peluang ada drop sama sekali (<code>chance × LUCK</code>, untuk musuh biasa 0,4%), lalu undian berbobot. Item dengan <code>luck_weighted</code> (mis. kantong koin) bobotnya dikali LUCK, sehingga relik Lucky Horseshoe membuat barang langka lebih sering, bukan hanya drop lebih banyak. Undian berbobot standar: jumlahkan bobot, ambil angka acak di <code>[0, total)</code>, kurangi bobot satu per satu sampai negatif.</p>
+
+<h2 id="breakable">Objek pecahan: musuh yang tidak bergerak</h2>
+<p>Lentera yang bisa dipecah harus kena aura, pisau, manik, kolam, dan bom. Kalau dibuat sebagai sistem terpisah, setiap senjata butuh kode tambahan. Trik Fase 6: <b>objek pecahan adalah slot EnemySwarm</b> dengan perilaku <code>STATIC</code> dan flag <code>PROP</code>.</p>
+<div class="code" data-src="world/breakable_data.gd"><div class="file"><span><b>world/breakable_data.gd</b> · baris 1–11</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> BreakableData
+<span class="ln"> 2</span><span class="tk-kw">extends</span> EnemyData
+<span class="ln"> 3</span><span class="tk-com">## A destructible prop (lantern, brazier, crate, grave cross). It lives in</span>
+<span class="ln"> 4</span><span class="tk-com">## EnemySwarm as a PROP slot with behavior STATIC, so every weapon (aura,</span>
+<span class="ln"> 5</span><span class="tk-com">## projectiles, orbit, ground zones) hits it through the same queries as</span>
+<span class="ln"> 6</span><span class="tk-com">## enemies, with the same hit flash and damage numbers. It deals no contact</span>
+<span class="ln"> 7</span><span class="tk-com">## damage, is not pushed, gives no XP and does not count as a kill; on death</span>
+<span class="ln"> 8</span><span class="tk-com">## it plays `death_effect` (its debris, the &quot;broken&quot; frames) and drops one</span>
+<span class="ln"> 9</span><span class="tk-com">## pickup from `drops` (BreakableSpawner keeps a few around the player).</span>
+<span class="ln">10</span>
+<span class="ln">11</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> drops: DropTable</code></pre></div><!--/code-->
+<p>Semua jalur hit sudah memakai <code>query_circle</code> + <code>damage_enemy</code>, jadi pecahan langsung ikut kena, dengan hit flash dan angka damage gratis. Yang perlu dikecualikan hanya sedikit: separasi melewati <code>PROP</code> (tidak terdorong), <code>collide_player</code> melewatinya (tidak menyakiti), dan <code>_on_enemy_died</code> tidak menghitung kill/XP tapi memutar efek puing dan menjatuhkan pickup dari <code>drops</code>. <code>BreakableSpawner</code> menjaga beberapa pecahan ada di cincin 9–15 unit, kebanyakan di depan arah jalan pemain, dan membuang yang tertinggal jauh.</p>
+
+<h2 id="angka-damage">Angka damage: satu instance per angka</h2>
+<p>"1234" butuh empat digit. Cara naif: satu instance per digit. Cara proyek ini: <b>satu quad per angka</b>, lebarnya = jumlah digit, dan <b>fragment shader memilih digit</b> dari nilai di <code>INSTANCE_CUSTOM.x</code>.</p>
+<div class="code" data-src="shaders/damage_number.gdshader" data-from="^void fragment"><div class="file"><span><b>shaders/damage_number.gdshader</b> · baris 38–57</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">38</span><span class="tk-kw">void</span> <span class="tk-fn">fragment</span>() {
+<span class="ln">39</span>    <span class="tk-ty">float</span> n = v_data.w;
+<span class="ln">40</span>    <span class="tk-ty">float</span> x = UV.x * n;
+<span class="ln">41</span>    <span class="tk-ty">float</span> k = <span class="tk-fn">floor</span>(x);
+<span class="ln">42</span>    <span class="tk-com">// +0.001: pow() may land a hair off the exact power of ten.</span>
+<span class="ln">43</span>    <span class="tk-ty">float</span> d = <span class="tk-fn">mod</span>(<span class="tk-fn">floor</span>(v_data.x / <span class="tk-fn">pow</span>(<span class="tk-num">10.0</span>, n - <span class="tk-num">1.0</span> - k) + <span class="tk-num">0.001</span>), <span class="tk-num">10.0</span>);
+<span class="ln">44</span>    <span class="tk-ty">vec4</span> c = <span class="tk-fn">texture</span>(digits, <span class="tk-ty">vec2</span>((d + <span class="tk-fn">fract</span>(x)) / <span class="tk-num">10.0</span>, UV.y));
+<span class="ln">45</span>    <span class="tk-ty">int</span> kind = <span class="tk-ty">int</span>(v_data.z + <span class="tk-num">0.5</span>);
+<span class="ln">46</span>    <span class="tk-ty">vec3</span> tint = normal_color.rgb;
+<span class="ln">47</span>    <span class="tk-kw">if</span> (kind == <span class="tk-num">1</span>) {
+<span class="ln">48</span>        tint = crit_color.rgb * crit_energy;
+<span class="ln">49</span>    } <span class="tk-kw">else</span> <span class="tk-kw">if</span> (kind == <span class="tk-num">2</span>) {
+<span class="ln">50</span>        tint = heal_color.rgb;
+<span class="ln">51</span>    } <span class="tk-kw">else</span> <span class="tk-kw">if</span> (kind == <span class="tk-num">3</span>) {
+<span class="ln">52</span>        tint = hurt_color.rgb;
+<span class="ln">53</span>    }
+<span class="ln">54</span>    <span class="tk-com">// White glyph pixels take the tint; the dark outline stays dark.</span>
+<span class="ln">55</span>    ALBEDO = c.rgb * tint * (<span class="tk-num">1.0</span> - <span class="tk-num">0.25</span> * UV.y);
+<span class="ln">56</span>    ALPHA = c.a * v_data.y;
+<span class="ln">57</span>}</code></pre></div><!--/code-->
+<p>Untuk piksel di posisi <code>x = UV.x × n</code>, digit ke-<code>k = floor(x)</code> dari kiri adalah <code>floor(nilai / 10^(n-1-k)) mod 10</code>. Contoh nilai 347, n = 3: k=0 → 347/100 = 3; k=1 → 34 mod 10 = 4; k=2 → 7. Lalu tekstur strip 0–9 disampel di <code>(d + fract(x)) / 10</code>. <code>depth_test_disabled</code> membuat angka selalu di atas dunia.</p>
+<p>Di 1000 musuh, aura bisa menghasilkan ratusan hit per pulsa. Dua aturan menjaga jumlah angka:</p>
+<div class="code" data-src="fx/damage_number_field.gd" data-from="^func add" data-to="^func tick"><div class="file"><span><b>fx/damage_number_field.gd</b> · baris 93–111</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 93</span><span class="tk-kw">func</span> <span class="tk-fn">add</span>(at: <span class="tk-ty">Vector2</span>, amount: <span class="tk-ty">float</span>, k: <span class="tk-ty">int</span> = NORMAL) -&gt; <span class="tk-kw">void</span>:
+<span class="ln"> 94</span>    <span class="tk-kw">if</span> amount &lt;= <span class="tk-num">0.0</span> <span class="tk-kw">or</span> <span class="tk-kw">not</span> enabled:
+<span class="ln"> 95</span>        <span class="tk-kw">return</span>
+<span class="ln"> 96</span>    <span class="tk-kw">var</span> r2 := merge_radius * merge_radius
+<span class="ln"> 97</span>    <span class="tk-kw">for</span> j <span class="tk-kw">in</span> <span class="tk-fn">range</span>(count - <span class="tk-num">1</span>, <span class="tk-fn">maxi</span>(<span class="tk-num">0</span>, count - MERGE_SCAN) - <span class="tk-num">1</span>, -<span class="tk-num">1</span>):
+<span class="ln"> 98</span>        <span class="tk-kw">if</span> kind[j] == k <span class="tk-kw">and</span> age[j] &lt; merge_window <span class="tk-kw">and</span> pos[j].<span class="tk-fn">distance_squared_to</span>(at) &lt; r2:
+<span class="ln"> 99</span>            value[j] = <span class="tk-fn">minf</span>(MAX_VALUE, value[j] + amount)
+<span class="ln">100</span>            age[j] = <span class="tk-num">0.0</span>  <span class="tk-com"># pops again</span>
+<span class="ln">101</span>            <span class="tk-kw">return</span>
+<span class="ln">102</span>    <span class="tk-kw">if</span> count &gt;= capacity <span class="tk-kw">or</span> (k == NORMAL <span class="tk-kw">and</span> count &gt;= soft_cap):
+<span class="ln">103</span>        <span class="tk-kw">return</span>
+<span class="ln">104</span>    <span class="tk-kw">var</span> i := count
+<span class="ln">105</span>    count += <span class="tk-num">1</span>
+<span class="ln">106</span>    pos[i] = at
+<span class="ln">107</span>    value[i] = <span class="tk-fn">minf</span>(MAX_VALUE, amount)
+<span class="ln">108</span>    age[i] = <span class="tk-num">0.0</span>
+<span class="ln">109</span>    life_of[i] = crit_life <span class="tk-kw">if</span> k == CRIT <span class="tk-kw">else</span> life
+<span class="ln">110</span>    kind[i] = k
+<span class="ln">111</span>    jitter[i] = <span class="tk-fn">randf_range</span>(-<span class="tk-num">0.35</span>, <span class="tk-num">0.35</span>)</code></pre></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">merge</b>Hit dekat (&lt; 0,7 unit) angka baru (&lt; 0,15 dtk) yang jenisnya sama digabung: nilainya dijumlah dan umurnya di-reset sehingga angka "pop" lagi. Hanya 8 angka terbaru yang dicek (<code>MERGE_SCAN</code>), jadi biayanya tetap kecil.</li>
+  <li><b class="ln">soft_cap</b>Di atas 220 angka hidup, hit NORMAL dibuang. Crit, heal, dan damage ke pemain tetap tampil karena itu informasi yang lebih penting.</li>
+</ul>
+
+<h2 id="efek">Efek sekali main</h2>
+<p><code>EffectField</code> memutar animasi 6 frame (asap, darah, ektoplasma, ledakan, kilau, heal, puing kayu/besi/batu/tulang) memakai shader billboard yang sama dengan <code>fps = 0</code>: dalam mode itu <code>INSTANCE_CUSTOM.x</code> berarti <b>indeks frame</b>, dihitung CPU dari umur efek. Baris efek kill dipilih dari <code>EnemyData.death_effect</code>; ukurannya ×2 untuk sprite besar, ×1,6 elite, ×3 boss + ledakan.</p>
+
+<h2 id="game-feel">Shake dan hit-stop</h2>
+<div class="callout"><span class="tag">Konsep · game feel</span><p><b>Screen shake</b> mengomunikasikan dampak. Masalahnya, shake yang terlalu sering melelahkan. Teknik <b>trauma</b>: setiap kejadian menambah nilai trauma 0..1 yang meluruh linear, dan offset kamera = trauma² × maks. Kuadrat membuat pukulan kecil nyaris tak terasa dan pukulan besar terasa jelas. <b>Hit-stop</b> membekukan simulasi beberapa puluh milidetik pada momen besar; otak membaca jeda itu sebagai "berat".</p></div>
+<div class="code" data-src="core/camera_rig.gd" data-from="^func tick" data-to="^## Ground rect"><div class="file"><span><b>core/camera_rig.gd</b> · baris 43–52</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">43</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(dt: <span class="tk-ty">float</span>, target: <span class="tk-ty">Vector3</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">44</span>    global_position = global_position.<span class="tk-fn">lerp</span>(target, <span class="tk-num">1.0</span> - <span class="tk-fn">exp</span>(-follow_sharpness * dt))
+<span class="ln">45</span>    <span class="tk-kw">if</span> _trauma &gt; <span class="tk-num">0.0</span>:
+<span class="ln">46</span>        _trauma = <span class="tk-fn">maxf</span>(<span class="tk-num">0.0</span>, _trauma - dt * <span class="tk-num">2.5</span>)
+<span class="ln">47</span>        <span class="tk-kw">var</span> s := _trauma * _trauma * max_shake_offset
+<span class="ln">48</span>        camera.h_offset = <span class="tk-fn">randf_range</span>(-s, s)
+<span class="ln">49</span>        camera.v_offset = <span class="tk-fn">randf_range</span>(-s, s)
+<span class="ln">50</span>    <span class="tk-kw">else</span>:
+<span class="ln">51</span>        camera.h_offset = <span class="tk-num">0.0</span>
+<span class="ln">52</span>        camera.v_offset = <span class="tk-num">0.0</span></code></pre></div><!--/code-->
+<div class="code" data-src="core/game.gd" data-from="^func _process" data-to="var dt := minf" data-hl="150-153"><div class="file"><span><b>core/game.gd</b> · baris 147–153</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">147</span><span class="tk-kw">func</span> <span class="tk-fn">_process</span>(delta: <span class="tk-ty">float</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">148</span>    <span class="tk-kw">if</span> <span class="tk-fn">get_tree</span>().paused:
+<span class="ln">149</span>        <span class="tk-kw">return</span>
+<span class="hl"><span class="ln">150</span>    <span class="tk-kw">if</span> _hit_stop &gt; <span class="tk-num">0.0</span>:</span>
+<span class="hl"><span class="ln">151</span>        _hit_stop -= delta</span>
+<span class="hl"><span class="ln">152</span>        camera_rig.<span class="tk-fn">tick</span>(delta, player.global_position)</span>
+<span class="hl"><span class="ln">153</span>        <span class="tk-kw">return</span></span></code></pre></div><!--/code-->
+<p>Hit-stop hanya tiga baris karena Game memegang urutan: selama <code>_hit_stop &gt; 0</code>, hanya kamera yang di-tick, lalu <code>return</code>. Tidak ada <code>Engine.time_scale</code> yang ikut memperlambat UI atau tween. Dipakai untuk bom (0,08 dtk), boss mati (0,16 dtk), dan crit ke boss (0,035 dtk, maksimal sekali per 0,6 dtk supaya tidak tersendat terus).</p>
+<div class="demo" data-demo="feel"></div>
+<p>Knockback juga mendapat batas di fase ini: <code>knock = (knock + kb × (1 − resist)).limit_length(max_knock)</code>. Tanpa batas, musuh yang kena aura, salib, dan pisau di frame yang sama bisa terlempar ke luar layar.</p>
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li><kbd>B</kbd> menaruh satu dari tiap objek pecahan di depan pemain. Pecahkan dengan aura: ada efek puing + asap, lalu satu pickup jatuh.</li>
+    <li><kbd>4</kbd>–<kbd>9</kbd> menjatuhkan tiap pickup. Ambil bom: semua musuh di layar kena, layar bergetar keras, dunia membeku sekejap, proyektil musuh hilang.</li>
+    <li>Angka damage putih; crit kuning lebih besar dan berpendar; heal hijau di atas pemain; damage ke pemain merah.</li>
+  </ul>
+</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>Angka menampilkan digit salah (mis. 299 untuk 300).</b> Presisi float pada <code>pow()</code>. Shader menambah <code>+0.001</code> sebelum <code>floor</code>.</li>
+    <li><b>Lentera terdorong musuh atau melukai pemain.</b> Lupa mengecualikan <code>PROP</code> di separasi atau <code>collide_player</code>.</li>
+    <li><b>Hit-stop membuat game terasa macet.</b> Durasi terlalu panjang atau terlalu sering. Batasi dengan cooldown seperti <code>boss_crit_cooldown</code>.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Buat pickup "Holy Candle" yang memberi heal 10% (efek HEAL, <code>amount = 0.1</code>) dan masukkan ke <code>enemy_drops.tres</code>. Tidak perlu kode; tapi kamu perlu baris sprite baru di <code>pickups.png</code> atau memakai baris yang ada.</li>
+    <li>Ubah <code>bomb_hit_stop</code> di Inspector Main ke 0,3 lalu ke 0. Mana yang terasa paling "berat" tanpa mengganggu?</li>
+    <li>Ubah <code>soft_cap</code> DamageNumberField ke 20 dan main di menit 15. Apakah informasi penting hilang?</li>
+  </ol>
+</div>
+<nav class="pager" id="pager" aria-label="Halaman sebelumnya dan berikutnya"></nav>
+</article>
+</main>
+</div>
+<script src="assets/search-index.js?v=f641e385"></script>
+<script src="assets/site.js?v=3fa56380"></script>
+<script src="assets/demos.js?v=4520dcc1"></script>
+<script src="assets/demos-swarm.js?v=36474919"></script>
+<script src="assets/demos-systems.js?v=9a72b9ac"></script>
+</body>
+</html>

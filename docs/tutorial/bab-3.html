@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Bab 3 · Senjata dan ProjectileField</title>
+<meta name="description" content="Fase 3 Knellbound: tabel level per senjata sebagai Resource, ProjectileField dengan packed array, pierce, pantul, orbit, lob, hit memory, dan zona tanah.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Pixelify+Sans:wght@500;600&display=swap">
+<link rel="stylesheet" href="assets/style.css?v=5213953b">
+<script>try{var t=JSON.parse(localStorage.getItem("kb-theme"));if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="bab-3">
+<header class="topbar">
+<button id="menu-btn" class="icon-btn" type="button" aria-label="Buka daftar bab"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Bab</button>
+<a class="brand" href="index.html">Knellbound <span>dari Nol</span></a>
+<span class="spacer"></span>
+<div class="search-wrap"><input id="search" type="search" placeholder="Cari… (tekan /)" aria-label="Cari di panduan" autocomplete="off"><div id="search-results" hidden></div></div>
+<button id="theme-btn" class="icon-btn" type="button" aria-label="Ganti tema"></button>
+<div class="progress-line"></div>
+</header>
+<div class="layout">
+<nav class="sidebar" id="sidebar" aria-label="Daftar bab"></nav>
+<main>
+<article class="article">
+<span class="eyebrow">Bab 3 · Fase 3 · commit b84a4fb</span>
+<h1>Senjata dan ProjectileField</h1>
+<p class="lede">Satu senjata menjadi lima: pisau yang dilempar lurus, manik yang mengorbit, vial yang dilempar melengkung dan meninggalkan kolam, salib yang memantul. Semua proyektil dari semua senjata hidup di satu tempat, <code>ProjectileField</code>.</p>
+<div class="goal"><span class="tag">Tujuan</span>Lima senjata dengan 8 level masing-masing, didefinisikan sebagai data. Ratusan proyektil di layar dengan satu MultiMesh. Proyektil bisa menembus (pierce), memantul ke musuh lain, memantul di tepi layar, mengorbit, atau melengkung di udara.</div>
+<figure><img src="assets/img/p3_clip.webp" alt="Rekaman Fase 3: pemain dengan aura, kolam air suci biru, salib memantul, pisau beterbangan di antara musuh" width="640" height="360" loading="lazy"><figcaption>Rekaman asli Fase 3 dengan semua senjata di level maksimal (debug <kbd>F5</kbd>).</figcaption></figure>
+
+<h2 id="weapon-level">Level senjata sebagai data</h2>
+<p>Fase 1 hanya punya <code>max_level</code>. Fase 3 mengganti itu dengan tabel: setiap level adalah Resource kecil <code>WeaponLevel</code> berisi <b>selisih</b> yang ditambahkan.</p>
+<div class="code" data-src="weapons/weapon_level.gd" data-to="^func text"><div class="file"><span><b>weapons/weapon_level.gd</b> · baris 1–18</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> WeaponLevel
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">Resource</span>
+<span class="ln"> 3</span><span class="tk-com">## What one weapon level adds on top of the previous ones. WeaponData.levels[0]</span>
+<span class="ln"> 4</span><span class="tk-com">## is level 2, levels[1] level 3, ... Deltas stack: Weapon sums every entry up</span>
+<span class="ln"> 5</span><span class="tk-com">## to its current level.</span>
+<span class="ln"> 6</span><span class="tk-com">##</span>
+<span class="ln"> 7</span><span class="tk-com">## damage / amount / pierce are flat; the rest are fractions of the base value</span>
+<span class="ln"> 8</span><span class="tk-com">## (0.1 = +10%, cooldown -0.1 = 10% faster).</span>
+<span class="ln"> 9</span>
+<span class="ln">10</span><span class="tk-com">## Shown on the level-up card. Empty = generated from the numbers.</span>
+<span class="ln">11</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> description := <span class="tk-str">&quot;&quot;</span>
+<span class="ln">12</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> damage := <span class="tk-num">0.0</span>
+<span class="ln">13</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> area := <span class="tk-num">0.0</span>
+<span class="ln">14</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> cooldown := <span class="tk-num">0.0</span>
+<span class="ln">15</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> amount := <span class="tk-num">0</span>
+<span class="ln">16</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> projectile_speed := <span class="tk-num">0.0</span>
+<span class="ln">17</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> duration := <span class="tk-num">0.0</span>
+<span class="ln">18</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> pierce := <span class="tk-num">0</span></code></pre></div><!--/code-->
+<div class="code" data-src="weapons/weapon_data.gd" data-from="^@export_group\(.Levels.\)"><div class="file"><span><b>weapons/weapon_data.gd</b> · baris 33–47</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">33</span><span class="tk-ann">@export_group</span>(<span class="tk-str">&quot;Levels&quot;</span>)
+<span class="ln">34</span><span class="tk-com">## levels[0] = level 2 ... levels[n-1] = level n + 1.</span>
+<span class="ln">35</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> levels: <span class="tk-ty">Array</span>[WeaponLevel] = []
+<span class="ln">36</span>
+<span class="ln">37</span><span class="tk-kw">var</span> max_level: <span class="tk-ty">int</span>:
+<span class="ln">38</span>    get:
+<span class="ln">39</span>        <span class="tk-kw">return</span> levels.<span class="tk-fn">size</span>() + <span class="tk-num">1</span>
+<span class="ln">40</span>
+<span class="ln">41</span>
+<span class="ln">42</span><span class="tk-com">## Text for the card offering `next_level` (2..max_level).</span>
+<span class="ln">43</span><span class="tk-kw">func</span> <span class="tk-fn">level_up_text</span>(next_level: <span class="tk-ty">int</span>) -&gt; <span class="tk-ty">String</span>:
+<span class="ln">44</span>    <span class="tk-kw">var</span> k := next_level - <span class="tk-num">2</span>
+<span class="ln">45</span>    <span class="tk-kw">if</span> k &lt; <span class="tk-num">0</span> <span class="tk-kw">or</span> k &gt;= levels.<span class="tk-fn">size</span>():
+<span class="ln">46</span>        <span class="tk-kw">return</span> description
+<span class="ln">47</span>    <span class="tk-kw">return</span> levels[k].<span class="tk-fn">text</span>()</code></pre></div><!--/code-->
+<p><code>max_level</code> bukan lagi angka yang diisi tangan, tapi <b>diturunkan</b> dari panjang tabel. Tidak mungkin lagi ada senjata yang mengaku 8 level tapi tabelnya hanya 6.</p>
+<p>Di Inspector, <code>levels</code> tampil sebagai array; klik <span class="menu-path">Add Element → New WeaponLevel</span> lalu isi. Hasilnya tersimpan sebagai sub-resource di file yang sama:</p>
+<div class="code" data-src="data/weapons/holy_aura.tres" data-lines="7-21"><div class="file"><span><b>data/weapons/holy_aura.tres</b> · baris 7–21</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 7</span>
+<span class="ln"> 8</span>[sub_resource type=<span class="tk-str">&quot;Resource&quot;</span> id=<span class="tk-str">&quot;Resource_lv2&quot;</span>]
+<span class="ln"> 9</span>script = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;4_level&quot;</span>)
+<span class="ln">10</span>description = <span class="tk-str">&quot;+2 damage.&quot;</span>
+<span class="ln">11</span>damage = <span class="tk-num">2.0</span>
+<span class="ln">12</span>
+<span class="ln">13</span>[sub_resource type=<span class="tk-str">&quot;Resource&quot;</span> id=<span class="tk-str">&quot;Resource_lv3&quot;</span>]
+<span class="ln">14</span>script = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;4_level&quot;</span>)
+<span class="ln">15</span>description = <span class="tk-str">&quot;Aura grows 15% wider.&quot;</span>
+<span class="ln">16</span>area = <span class="tk-num">0.15</span>
+<span class="ln">17</span>
+<span class="ln">18</span>[sub_resource type=<span class="tk-str">&quot;Resource&quot;</span> id=<span class="tk-str">&quot;Resource_lv4&quot;</span>]
+<span class="ln">19</span>script = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;4_level&quot;</span>)
+<span class="ln">20</span>description = <span class="tk-str">&quot;Pulses 10% faster.&quot;</span>
+<span class="ln">21</span>cooldown = -<span class="tk-num">0.1</span></code></pre></div><!--/code-->
+<p>Setter <code>level</code> di <code>Weapon</code> menjumlah semua delta sampai level sekarang, sekali saja saat level berubah. Helper seperti <code>area()</code> lalu menggabungkan tiga sumber: base dari data, jumlah delta level, dan Stats pemain.</p>
+<div class="code" data-src="weapons/weapon.gd" data-from="^var level := 1" data-to="^# Sum of data.levels"><div class="file"><span><b>weapons/weapon.gd</b> · baris 15–18</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">15</span><span class="tk-kw">var</span> level := <span class="tk-num">1</span>:
+<span class="ln">16</span>    <span class="tk-fn">set</span>(v):
+<span class="ln">17</span>        level = <span class="tk-fn">clampi</span>(v, <span class="tk-num">1</span>, data.max_level)
+<span class="ln">18</span>        <span class="tk-fn">_sum_levels</span>()</code></pre></div><!--/code-->
+<div class="code" data-src="weapons/weapon.gd" data-from="^func area\(\)" data-to="^func pierce"><div class="file"><span><b>weapons/weapon.gd</b> · baris 38–60</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">38</span><span class="tk-kw">func</span> <span class="tk-fn">area</span>() -&gt; <span class="tk-ty">float</span>:
+<span class="ln">39</span>    <span class="tk-kw">return</span> data.area * (<span class="tk-num">1.0</span> + _area) * stats.<span class="tk-fn">value</span>(Stats.Id.AREA)
+<span class="ln">40</span>
+<span class="ln">41</span>
+<span class="ln">42</span><span class="tk-com">## area() relative to the base area: scale for sprites and secondary radii.</span>
+<span class="ln">43</span><span class="tk-kw">func</span> <span class="tk-fn">area_scale</span>() -&gt; <span class="tk-ty">float</span>:
+<span class="ln">44</span>    <span class="tk-kw">return</span> <span class="tk-fn">area</span>() / data.area
+<span class="ln">45</span>
+<span class="ln">46</span>
+<span class="ln">47</span><span class="tk-kw">func</span> <span class="tk-fn">cooldown</span>() -&gt; <span class="tk-ty">float</span>:
+<span class="ln">48</span>    <span class="tk-kw">return</span> data.cooldown * <span class="tk-fn">maxf</span>(<span class="tk-num">0.2</span>, <span class="tk-num">1.0</span> + _cooldown) * stats.<span class="tk-fn">value</span>(Stats.Id.COOLDOWN)
+<span class="ln">49</span>
+<span class="ln">50</span>
+<span class="ln">51</span><span class="tk-kw">func</span> <span class="tk-fn">amount</span>() -&gt; <span class="tk-ty">int</span>:
+<span class="ln">52</span>    <span class="tk-kw">return</span> data.amount + _amount + stats.<span class="tk-fn">int_value</span>(Stats.Id.AMOUNT)
+<span class="ln">53</span>
+<span class="ln">54</span>
+<span class="ln">55</span><span class="tk-kw">func</span> <span class="tk-fn">projectile_speed</span>() -&gt; <span class="tk-ty">float</span>:
+<span class="ln">56</span>    <span class="tk-kw">return</span> data.projectile_speed * (<span class="tk-num">1.0</span> + _speed) * stats.<span class="tk-fn">value</span>(Stats.Id.PROJECTILE_SPEED)
+<span class="ln">57</span>
+<span class="ln">58</span>
+<span class="ln">59</span><span class="tk-kw">func</span> <span class="tk-fn">duration</span>() -&gt; <span class="tk-ty">float</span>:
+<span class="ln">60</span>    <span class="tk-kw">return</span> data.duration * (<span class="tk-num">1.0</span> + _duration) * stats.<span class="tk-fn">value</span>(Stats.Id.DURATION)</code></pre></div><!--/code-->
+<div class="callout"><span class="tag">Konsep · setter properti GDScript</span><p><code>var level := 1:</code> diikuti blok <code>set(v):</code> membuat setiap penulisan <code>w.level = 5</code> menjalankan kode. Dipakai di sini supaya cache <code>_damage</code>, <code>_area</code>, dst. tidak pernah basi. Di dalam setter, menulis <code>level = …</code> menyimpan nilai tanpa memanggil setter lagi.</p></div>
+
+<h2 id="projectile-field">ProjectileField</h2>
+<p>Kalau setiap pisau adalah node, Thornstorm (evolusi pisau, Fase 4) yang melempar kipas 5 pisau beberapa kali per detik akan membuat dan menghapus ratusan node per detik. Jadi proyektil memakai pola swarm: packed array paralel + satu MultiMesh, untuk <b>semua</b> senjata sekaligus.</p>
+<div class="code" data-src="weapons/projectile_field.gd" data-from="^## Motion / behaviour flags" data-to="^@export var capacity"><div class="file"><span><b>weapons/projectile_field.gd</b> · baris 16–48</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">16</span><span class="tk-com">## Motion / behaviour flags.</span>
+<span class="ln">17</span><span class="tk-kw">const</span> ORBIT := <span class="tk-num">1</span>          <span class="tk-com">## circles `center` (radius = orbit_r, vel = (angle, rad/s))</span>
+<span class="ln">18</span><span class="tk-kw">const</span> FACE_VELOCITY := <span class="tk-num">2</span>  <span class="tk-com">## sprite points along its travel direction</span>
+<span class="ln">19</span><span class="tk-kw">const</span> BOUNCE_ENEMY := <span class="tk-num">4</span>   <span class="tk-com">## after a hit, retarget the nearest unhit enemy</span>
+<span class="ln">20</span><span class="tk-kw">const</span> BOUNCE_SCREEN := <span class="tk-num">8</span>  <span class="tk-com">## reflect off the edges of `view_rect`</span>
+<span class="ln">21</span><span class="tk-kw">const</span> NO_HIT := <span class="tk-num">16</span>        <span class="tk-com">## visual only (e.g. a vial in flight)</span>
+<span class="ln">22</span><span class="tk-kw">const</span> ARC := <span class="tk-num">32</span>           <span class="tk-com">## parabolic height over its lifetime</span>
+<span class="ln">23</span>
+<span class="ln">24</span><span class="tk-kw">const</span> STRIDE := <span class="tk-num">16</span>
+<span class="ln">25</span><span class="tk-kw">const</span> CELL_WORLD := <span class="tk-num">18.0</span> / <span class="tk-num">16.0</span>
+<span class="ln">26</span><span class="tk-kw">const</span> HIT_MEMORY := <span class="tk-num">4</span>
+<span class="ln">27</span><span class="tk-kw">const</span> SHADER := <span class="tk-kw">preload</span>(<span class="tk-str">&quot;res://shaders/projectile.gdshader&quot;</span>)
+<span class="ln">28</span>
+<span class="ln">29</span>
+<span class="ln">30</span><span class="tk-com">## Spawn parameters; weapons keep one and refill it (no per-shot allocation).</span>
+<span class="ln">31</span><span class="tk-kw">class</span> Shot:
+<span class="ln">32</span>    <span class="tk-kw">var</span> pos := <span class="tk-ty">Vector2</span>.ZERO
+<span class="ln">33</span>    <span class="tk-kw">var</span> vel := <span class="tk-ty">Vector2</span>.ZERO
+<span class="ln">34</span>    <span class="tk-kw">var</span> orbit_r := <span class="tk-num">0.0</span>
+<span class="ln">35</span>    <span class="tk-kw">var</span> life := <span class="tk-num">1.0</span>
+<span class="ln">36</span>    <span class="tk-kw">var</span> damage := <span class="tk-num">1.0</span>
+<span class="ln">37</span>    <span class="tk-kw">var</span> radius := <span class="tk-num">0.3</span>
+<span class="ln">38</span>    <span class="tk-com">## Enemies it may hit; -1 = unlimited. For BOUNCE_ENEMY each hit is a bounce.</span>
+<span class="ln">39</span>    <span class="tk-kw">var</span> hits := <span class="tk-num">1</span>
+<span class="ln">40</span>    <span class="tk-kw">var</span> knockback := <span class="tk-num">0.0</span>
+<span class="ln">41</span>    <span class="tk-kw">var</span> rehit := <span class="tk-num">0.0</span>
+<span class="ln">42</span>    <span class="tk-kw">var</span> size := <span class="tk-num">1.0</span>
+<span class="ln">43</span>    <span class="tk-kw">var</span> row := <span class="tk-num">0</span>
+<span class="ln">44</span>    <span class="tk-kw">var</span> spin := <span class="tk-num">0.0</span>
+<span class="ln">45</span>    <span class="tk-kw">var</span> angle := <span class="tk-num">0.0</span>
+<span class="ln">46</span>    <span class="tk-kw">var</span> glow := <span class="tk-num">1.0</span>
+<span class="ln">47</span>    <span class="tk-kw">var</span> flags := <span class="tk-num">0</span>
+<span class="ln">48</span>    <span class="tk-kw">var</span> source: Weapon</code></pre></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">flags</b>Perilaku berbeda dikodekan sebagai bit flag dalam satu <code>int</code>, bukan subclass. Salib = <code>BOUNCE_ENEMY | BOUNCE_SCREEN</code>; satu loop menangani semuanya dengan <code>if f &amp; ORBIT</code>.</li>
+  <li><b class="ln">Shot</b>Kelas dalam (<code>class Shot</code>) berisi parameter spawn. Setiap senjata menyimpan <b>satu</b> objek <code>Shot</code> dan mengisi ulang sebelum <code>spawn()</code>. Tidak ada alokasi per proyektil; <code>spawn()</code> menyalin nilainya ke array.</li>
+</ul>
+<p>Contoh pemakaian paling sederhana, pisau Silverthorn:</p>
+<div class="code" data-src="weapons/knives/knives_weapon.gd" data-from="^func _throw"><div class="file"><span><b>weapons/knives/knives_weapon.gd</b> · baris 43–61</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">43</span><span class="tk-kw">func</span> <span class="tk-fn">_throw</span>(game: Game) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">44</span>    <span class="tk-kw">var</span> s := _shot
+<span class="ln">45</span>    <span class="tk-kw">var</span> aim := _aim.<span class="tk-fn">rotated</span>(<span class="tk-fn">deg_to_rad</span>(<span class="tk-fn">randf_range</span>(-spread_degrees, spread_degrees)))
+<span class="ln">46</span>    s.life = <span class="tk-fn">duration</span>()
+<span class="ln">47</span>    s.damage = <span class="tk-fn">damage</span>()
+<span class="ln">48</span>    s.radius = <span class="tk-fn">area</span>()
+<span class="ln">49</span>    s.hits = <span class="tk-fn">pierce</span>() + <span class="tk-num">1</span>
+<span class="ln">50</span>    s.knockback = <span class="tk-fn">knockback</span>()
+<span class="ln">51</span>    s.size = ProjectileField.CELL_WORLD * sprite_scale * <span class="tk-fn">area_scale</span>()
+<span class="ln">52</span>    s.row = sprite_row
+<span class="ln">53</span>    s.glow = <span class="tk-num">1.15</span>
+<span class="ln">54</span>    s.flags = ProjectileField.FACE_VELOCITY
+<span class="ln">55</span>    s.source = <span class="tk-kw">self</span>
+<span class="ln">56</span>    <span class="tk-kw">var</span> speed := <span class="tk-fn">projectile_speed</span>()
+<span class="ln">57</span>    <span class="tk-kw">for</span> f <span class="tk-kw">in</span> fan:
+<span class="ln">58</span>        <span class="tk-kw">var</span> dir := aim.<span class="tk-fn">rotated</span>(<span class="tk-fn">deg_to_rad</span>((f - (fan - <span class="tk-num">1</span>) * <span class="tk-num">0.5</span>) * fan_degrees))
+<span class="ln">59</span>        s.pos = game.player.pos2 + dir * <span class="tk-num">0.4</span>
+<span class="ln">60</span>        s.vel = dir * speed
+<span class="ln">61</span>        game.projectiles.<span class="tk-fn">spawn</span>(s)</code></pre></div><!--/code-->
+
+<h3 id="tick-proyektil">Gerak dan hit</h3>
+<div class="code" data-src="weapons/projectile_field.gd" data-from="^## Move, hit, expire" data-to="^## Returns true when the projectile is spent"><div class="file"><span><b>weapons/projectile_field.gd</b> · baris 176–214</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">176</span><span class="tk-com">## Move, hit, expire. `center` is the orbit centre (the player).</span>
+<span class="ln">177</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(dt: <span class="tk-ty">float</span>, swarm: EnemySwarm, center: <span class="tk-ty">Vector2</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">178</span>    <span class="tk-kw">var</span> i := <span class="tk-num">0</span>
+<span class="ln">179</span>    <span class="tk-kw">while</span> i &lt; count:
+<span class="ln">180</span>        life[i] -= dt
+<span class="ln">181</span>        <span class="tk-kw">if</span> life[i] &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">182</span>            <span class="tk-fn">_remove_at</span>(i)
+<span class="ln">183</span>            <span class="tk-kw">continue</span>
+<span class="ln">184</span>        <span class="tk-kw">var</span> f := flags[i]
+<span class="ln">185</span>        <span class="tk-kw">var</span> p: <span class="tk-ty">Vector2</span>
+<span class="ln">186</span>        <span class="tk-kw">if</span> f &amp; ORBIT:
+<span class="ln">187</span>            <span class="tk-kw">var</span> v := vel[i]
+<span class="ln">188</span>            v.x += v.y * dt
+<span class="ln">189</span>            vel[i] = v
+<span class="ln">190</span>            p = center + <span class="tk-ty">Vector2</span>(<span class="tk-fn">cos</span>(v.x), <span class="tk-fn">sin</span>(v.x)) * orbit_r[i]
+<span class="ln">191</span>        <span class="tk-kw">else</span>:
+<span class="ln">192</span>            p = pos[i] + vel[i] * dt
+<span class="ln">193</span>            <span class="tk-kw">if</span> f &amp; BOUNCE_SCREEN:
+<span class="ln">194</span>                p = <span class="tk-fn">_bounce_screen</span>(i, p)
+<span class="ln">195</span>        pos[i] = p
+<span class="ln">196</span>        <span class="tk-kw">if</span> f &amp; FACE_VELOCITY:
+<span class="ln">197</span>            angle[i] = <span class="tk-fn">_screen_angle</span>(vel[i])
+<span class="ln">198</span>        <span class="tk-kw">else</span>:
+<span class="ln">199</span>            angle[i] += spin[i] * dt
+<span class="ln">200</span>
+<span class="ln">201</span>        <span class="tk-kw">if</span> f &amp; NO_HIT:
+<span class="ln">202</span>            i += <span class="tk-num">1</span>
+<span class="ln">203</span>            <span class="tk-kw">continue</span>
+<span class="ln">204</span>        <span class="tk-kw">if</span> rehit[i] &gt; <span class="tk-num">0.0</span>:
+<span class="ln">205</span>            rehit_t[i] -= dt
+<span class="ln">206</span>            <span class="tk-kw">if</span> rehit_t[i] &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">207</span>                rehit_t[i] += rehit[i]
+<span class="ln">208</span>                <span class="tk-kw">var</span> m := i * HIT_MEMORY
+<span class="ln">209</span>                <span class="tk-kw">for</span> k <span class="tk-kw">in</span> HIT_MEMORY:
+<span class="ln">210</span>                    memory[m + k] = <span class="tk-num">0</span>
+<span class="ln">211</span>        <span class="tk-kw">if</span> <span class="tk-fn">_hit_enemies</span>(i, swarm, center):
+<span class="ln">212</span>            <span class="tk-fn">_remove_at</span>(i)
+<span class="ln">213</span>            <span class="tk-kw">continue</span>
+<span class="ln">214</span>        i += <span class="tk-num">1</span></code></pre></div><!--/code-->
+<div class="code" data-src="weapons/projectile_field.gd" data-from="^func _hit_enemies" data-to="^func _bounce_screen"><div class="file"><span><b>weapons/projectile_field.gd</b> · baris 218–255</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">218</span><span class="tk-kw">func</span> <span class="tk-fn">_hit_enemies</span>(i: <span class="tk-ty">int</span>, swarm: EnemySwarm, center: <span class="tk-ty">Vector2</span>) -&gt; <span class="tk-ty">bool</span>:
+<span class="ln">219</span>    <span class="tk-kw">var</span> p := pos[i]
+<span class="ln">220</span>    <span class="tk-kw">var</span> f := flags[i]
+<span class="ln">221</span>    <span class="tk-kw">for</span> j <span class="tk-kw">in</span> swarm.<span class="tk-fn">query_circle</span>(p, radius[i]):
+<span class="ln">222</span>        <span class="tk-kw">var</span> u := swarm.uid[j]
+<span class="ln">223</span>        <span class="tk-kw">if</span> <span class="tk-fn">_remembers</span>(i, u):
+<span class="ln">224</span>            <span class="tk-kw">continue</span>
+<span class="ln">225</span>        <span class="tk-fn">_remember</span>(i, u)
+<span class="ln">226</span>        <span class="tk-kw">var</span> dir: <span class="tk-ty">Vector2</span>
+<span class="ln">227</span>        <span class="tk-kw">if</span> f &amp; ORBIT:
+<span class="ln">228</span>            dir = (swarm.pos[j] - center).<span class="tk-fn">normalized</span>()
+<span class="ln">229</span>        <span class="tk-kw">else</span>:
+<span class="ln">230</span>            dir = vel[i].<span class="tk-fn">normalized</span>()
+<span class="ln">231</span>        <span class="tk-kw">var</span> src := source[i]
+<span class="ln">232</span>        swarm.<span class="tk-fn">damage_enemy</span>(j, src.<span class="tk-fn">roll_damage</span>(damage[i]), dir * knock[i], src.last_crit, src)
+<span class="ln">233</span>        <span class="tk-kw">if</span> hits[i] &gt; <span class="tk-num">0</span>:
+<span class="ln">234</span>            hits[i] -= <span class="tk-num">1</span>
+<span class="ln">235</span>            <span class="tk-kw">if</span> hits[i] == <span class="tk-num">0</span>:
+<span class="ln">236</span>                <span class="tk-kw">return</span> <span class="tk-kw">true</span>
+<span class="ln">237</span>        <span class="tk-kw">if</span> f &amp; BOUNCE_ENEMY:
+<span class="ln">238</span>            <span class="tk-fn">_retarget</span>(i, swarm)
+<span class="ln">239</span>            <span class="tk-kw">return</span> <span class="tk-kw">false</span>
+<span class="ln">240</span>    <span class="tk-kw">return</span> <span class="tk-kw">false</span>
+<span class="ln">241</span>
+<span class="ln">242</span>
+<span class="ln">243</span><span class="tk-kw">func</span> <span class="tk-fn">_retarget</span>(i: <span class="tk-ty">int</span>, swarm: EnemySwarm) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">244</span>    <span class="tk-kw">var</span> p := pos[i]
+<span class="ln">245</span>    <span class="tk-kw">var</span> best := -<span class="tk-num">1</span>
+<span class="ln">246</span>    <span class="tk-kw">var</span> best_d2 := INF
+<span class="ln">247</span>    <span class="tk-kw">for</span> j <span class="tk-kw">in</span> swarm.<span class="tk-fn">query_circle</span>(p, bounce_search_radius):
+<span class="ln">248</span>        <span class="tk-kw">if</span> <span class="tk-fn">_remembers</span>(i, swarm.uid[j]):
+<span class="ln">249</span>            <span class="tk-kw">continue</span>
+<span class="ln">250</span>        <span class="tk-kw">var</span> d2 := swarm.pos[j].<span class="tk-fn">distance_squared_to</span>(p)
+<span class="ln">251</span>        <span class="tk-kw">if</span> d2 &lt; best_d2:
+<span class="ln">252</span>            best_d2 = d2
+<span class="ln">253</span>            best = j
+<span class="ln">254</span>    <span class="tk-kw">if</span> best &gt;= <span class="tk-num">0</span>:
+<span class="ln">255</span>        vel[i] = (swarm.pos[best] - p).<span class="tk-fn">normalized</span>() * vel[i].<span class="tk-fn">length</span>()</code></pre></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">hits</b><code>hits</code> = sisa musuh yang boleh dikenai: <code>pierce + 1</code>. Nilai <code>-1</code> = tak terbatas (orbit, salib Radiant). Untuk <code>BOUNCE_ENEMY</code> setiap hit dihitung sebagai satu pantulan.</li>
+  <li><b class="ln">memory</b>Proyektil yang menembus berada di dalam musuh selama beberapa frame. Tanpa ingatan, ia mengenai musuh yang sama setiap frame. Setiap proyektil menyimpan uid 4 musuh terakhir dalam ring buffer (<code>HIT_MEMORY = 4</code>, array datar <code>capacity × 4</code>).</li>
+  <li><b class="ln">uid</b>Kenapa uid dan bukan indeks slot? Karena swap-remove memindahkan musuh antar-slot (Bab 1). Fase 3 menambahkan <code>EnemySwarm.uid</code>: nomor unik yang ikut pindah bersama musuhnya.</li>
+  <li><b class="ln">_retarget</b>Setelah mengenai, salib mencari musuh terdekat yang belum diingat dalam radius 7, lalu membelokkan kecepatannya ke sana dengan laju yang sama.</li>
+</ul>
+<div class="demo" data-demo="projectiles"></div>
+
+<h3 id="screen-angle">Sudut di layar</h3>
+<p>Pisau harus menunjuk ke arah terbangnya. Tapi arah di tanah (x, z) tidak sama dengan arah di layar: kamera miring menyusutkan sumbu Z sebesar <code>sin 50°</code>. Jadi sudut layar dihitung dengan Z yang sudah disusutkan, dan shader proyektil memutar quad di bidang layar sebelum menariknya dengan <code>y_stretch</code>:</p>
+<div class="code" data-src="weapons/projectile_field.gd" data-from="^## Screen-space angle" data-to="^func clear"><div class="file"><span><b>weapons/projectile_field.gd</b> · baris 283–285</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">283</span><span class="tk-com">## Screen-space angle of a ground direction (x right, z toward the camera).</span>
+<span class="ln">284</span><span class="tk-kw">func</span> <span class="tk-fn">_screen_angle</span>(v: <span class="tk-ty">Vector2</span>) -&gt; <span class="tk-ty">float</span>:
+<span class="ln">285</span>    <span class="tk-kw">return</span> <span class="tk-fn">atan2</span>(-v.y * _screen_k, v.x)</code></pre></div><!--/code-->
+<div class="code" data-src="shaders/projectile.gdshader" data-from="// Rotate in the quad plane first" data-to="MODELVIEW_MATRIX = VIEW_MATRIX"><div class="file"><span><b>shaders/projectile.gdshader</b> · baris 23–28</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">23</span>    <span class="tk-com">// Rotate in the quad plane first, then stretch: with the stretch undoing</span>
+<span class="ln">24</span>    <span class="tk-com">// the camera pitch, the angle reads the same on screen.</span>
+<span class="ln">25</span>    <span class="tk-ty">float</span> a = INSTANCE_CUSTOM.y;
+<span class="ln">26</span>    <span class="tk-ty">float</span> c = <span class="tk-fn">cos</span>(a);
+<span class="ln">27</span>    <span class="tk-ty">float</span> s = <span class="tk-fn">sin</span>(a);
+<span class="ln">28</span>    VERTEX.xy = <span class="tk-ty">vec2</span>(c * VERTEX.x - s * VERTEX.y, (s * VERTEX.x + c * VERTEX.y) * y_stretch);</code></pre></div><!--/code-->
+<p>Tanda minus pada <code>-v.y</code>: Z positif menghadap kamera (ke bawah layar), sedangkan sudut layar positif berputar berlawanan jarum jam ke atas.</p>
+
+<h2 id="orbit">Orbit: Vesper Beads</h2>
+<p>Manik orbit tidak diintegrasikan dari kecepatan. <code>vel.x</code> dipakai sebagai <b>sudut</b> dan <code>vel.y</code> sebagai <b>kecepatan sudut</b> (rad/s); posisinya dihitung ulang tiap frame dari pusat (pemain). Lingkarannya tidak pernah melenceng walau pemain berlari.</p>
+<div class="code" data-src="weapons/orbit/orbit_weapon.gd" data-from="^func tick"><div class="file"><span><b>weapons/orbit/orbit_weapon.gd</b> · baris 25–62</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">25</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(dt: <span class="tk-ty">float</span>, game: Game) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">26</span>    <span class="tk-kw">var</span> speed := <span class="tk-fn">projectile_speed</span>()
+<span class="ln">27</span>    _phase = <span class="tk-fn">fmod</span>(_phase + speed * dt, TAU)
+<span class="ln">28</span>    _timer -= dt
+<span class="ln">29</span>    <span class="tk-kw">if</span> _timer &gt; <span class="tk-num">0.0</span>:
+<span class="ln">30</span>        <span class="tk-kw">return</span>
+<span class="ln">31</span>    <span class="tk-kw">var</span> active: <span class="tk-ty">float</span>
+<span class="ln">32</span>    <span class="tk-kw">var</span> start: <span class="tk-ty">float</span>
+<span class="ln">33</span>    <span class="tk-kw">if</span> continuous:
+<span class="ln">34</span>        _timer += refresh
+<span class="ln">35</span>        <span class="tk-com"># a few frames of overlap so the old set never vanishes before the new one</span>
+<span class="ln">36</span>        active = refresh + <span class="tk-num">0.05</span>
+<span class="ln">37</span>        start = _phase
+<span class="ln">38</span>    <span class="tk-kw">else</span>:
+<span class="ln">39</span>        active = <span class="tk-fn">duration</span>()
+<span class="ln">40</span>        _timer += active + <span class="tk-fn">cooldown</span>()
+<span class="ln">41</span>        start = <span class="tk-fn">randf</span>() * TAU
+<span class="ln">42</span>    <span class="tk-kw">var</span> n := <span class="tk-fn">amount</span>()
+<span class="ln">43</span>    <span class="tk-kw">var</span> s := _shot
+<span class="ln">44</span>    s.life = active
+<span class="ln">45</span>    s.damage = <span class="tk-fn">damage</span>()
+<span class="ln">46</span>    s.radius = hit_radius * <span class="tk-fn">area_scale</span>()
+<span class="ln">47</span>    s.hits = -<span class="tk-num">1</span>
+<span class="ln">48</span>    s.knockback = <span class="tk-fn">knockback</span>()
+<span class="ln">49</span>    s.rehit = data.hit_interval
+<span class="ln">50</span>    s.size = ProjectileField.CELL_WORLD * sprite_scale * <span class="tk-fn">sqrt</span>(<span class="tk-fn">area_scale</span>())
+<span class="ln">51</span>    s.row = sprite_row
+<span class="ln">52</span>    s.glow = glow
+<span class="ln">53</span>    s.flags = ProjectileField.ORBIT
+<span class="ln">54</span>    s.source = <span class="tk-kw">self</span>
+<span class="ln">55</span>    <span class="tk-kw">for</span> ring <span class="tk-kw">in</span> rings:
+<span class="ln">56</span>        <span class="tk-kw">var</span> dir := <span class="tk-num">1.0</span> <span class="tk-kw">if</span> ring % <span class="tk-num">2</span> == <span class="tk-num">0</span> <span class="tk-kw">else</span> -<span class="tk-num">1.0</span>
+<span class="ln">57</span>        <span class="tk-kw">var</span> beads := n <span class="tk-kw">if</span> ring == <span class="tk-num">0</span> <span class="tk-kw">else</span> <span class="tk-fn">maxi</span>(<span class="tk-num">2</span>, <span class="tk-fn">ceili</span>(n * <span class="tk-num">0.5</span>))
+<span class="ln">58</span>        s.orbit_r = <span class="tk-fn">area</span>() * <span class="tk-fn">pow</span>(inner_ring_scale, ring)
+<span class="ln">59</span>        <span class="tk-kw">for</span> k <span class="tk-kw">in</span> beads:
+<span class="ln">60</span>            s.vel = <span class="tk-ty">Vector2</span>(dir * start + TAU * k / beads, dir * speed)
+<span class="ln">61</span>            s.pos = game.player.pos2
+<span class="ln">62</span>            game.projectiles.<span class="tk-fn">spawn</span>(s)</code></pre></div><!--/code-->
+<p><code>s.hits = -1</code> (tidak pernah habis karena kena) dan <code>s.rehit = data.hit_interval</code>: memori hit dihapus setiap interval, jadi manik bisa mengenai musuh yang sama di putaran berikutnya.</p>
+<div class="demo" data-demo="orbit"></div>
+
+<h2 id="vial">Lob dan zona tanah: Hallowed Vial</h2>
+<p>Vial adalah dua benda: botol yang terbang (proyektil <code>NO_HIT | ARC</code> di ProjectileField, tingginya mengikuti parabola <code>4·h·t·(1−t)</code> di <code>upload()</code>) dan kolam air suci di tanah. Kolam bukan proyektil: ia diam, besar, dan memberi damage berkala ke semua yang di dalamnya. Jadi senjata vial punya packed array dan MultiMesh-nya sendiri.</p>
+<div class="code" data-src="weapons/vial/vial_weapon.gd" data-from="^extends Weapon" data-to="^func _ready"><div class="file"><span><b>weapons/vial/vial_weapon.gd</b> · baris 1–45</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">extends</span> Weapon
+<span class="ln"> 2</span><span class="tk-com">## Hallowed Vial: lobs vials of holy water at random enemies on screen. Each</span>
+<span class="ln"> 3</span><span class="tk-com">## vial shatters into a pool (radius area(), lasting duration()) that damages</span>
+<span class="ln"> 4</span><span class="tk-com">## every enemy inside it every data.hit_interval.</span>
+<span class="ln"> 5</span><span class="tk-com">##</span>
+<span class="ln"> 6</span><span class="tk-com">## Font of Saints (evolution): each vial splashes into `splash_count` pools</span>
+<span class="ln"> 7</span><span class="tk-com">## that creep toward the player at `drift_speed`.</span>
+<span class="ln"> 8</span><span class="tk-com">##</span>
+<span class="ln"> 9</span><span class="tk-com">## The vial in flight is a NO_HIT | ARC projectile in the ProjectileField; the</span>
+<span class="ln">10</span><span class="tk-com">## pools are packed arrays drawn by this weapon&#x27;s own MultiMesh (top_level, so</span>
+<span class="ln">11</span><span class="tk-com">## they stay on the ground while the player moves).</span>
+<span class="ln">12</span>
+<span class="ln">13</span><span class="tk-kw">const</span> STRIDE := <span class="tk-num">16</span>
+<span class="ln">14</span><span class="tk-kw">const</span> DECAL_SHADER := <span class="tk-kw">preload</span>(<span class="tk-str">&quot;res://shaders/ground_decal.gdshader&quot;</span>)
+<span class="ln">15</span><span class="tk-kw">const</span> MAX_POOLS := <span class="tk-num">96</span>
+<span class="ln">16</span>
+<span class="ln">17</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> sprite_row := <span class="tk-num">3</span>
+<span class="ln">18</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> flight_time := <span class="tk-num">0.55</span>
+<span class="ln">19</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> target_range := <span class="tk-num">9.0</span>
+<span class="ln">20</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> pool_sheet: <span class="tk-ty">Texture2D</span>
+<span class="ln">21</span><span class="tk-com">## Pool texture: circle diameter / texture width (art has a transparent border).</span>
+<span class="ln">22</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> pool_fill := <span class="tk-num">46.0</span> / <span class="tk-num">48.0</span>
+<span class="ln">23</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> splash_time := <span class="tk-num">0.12</span>
+<span class="ln">24</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> fade_time := <span class="tk-num">0.35</span>
+<span class="ln">25</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> splash_count := <span class="tk-num">1</span>
+<span class="ln">26</span><span class="tk-com">## Extra pools land this far (times area()) from the first one.</span>
+<span class="ln">27</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> splash_spread := <span class="tk-num">1.1</span>
+<span class="ln">28</span><span class="tk-com">## World units / second toward the player; 0 = pools stay put.</span>
+<span class="ln">29</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> drift_speed := <span class="tk-num">0.0</span>
+<span class="ln">30</span>
+<span class="ln">31</span><span class="tk-kw">var</span> _timer := <span class="tk-num">0.3</span>
+<span class="ln">32</span><span class="tk-kw">var</span> _shot := ProjectileField.Shot.<span class="tk-fn">new</span>()
+<span class="ln">33</span><span class="tk-com"># Vials in flight: landing spot + seconds left.</span>
+<span class="ln">34</span><span class="tk-kw">var</span> _land_pos := <span class="tk-ty">PackedVector2Array</span>()
+<span class="ln">35</span><span class="tk-kw">var</span> _land_t := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">36</span><span class="tk-com"># Pools.</span>
+<span class="ln">37</span><span class="tk-kw">var</span> _count := <span class="tk-num">0</span>
+<span class="ln">38</span><span class="tk-kw">var</span> _pos := <span class="tk-ty">PackedVector2Array</span>()
+<span class="ln">39</span><span class="tk-kw">var</span> _life := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">40</span><span class="tk-kw">var</span> _life0 := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">41</span><span class="tk-kw">var</span> _radius := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">42</span><span class="tk-kw">var</span> _tick_t := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">43</span><span class="tk-kw">var</span> _phase := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">44</span><span class="tk-kw">var</span> _buf := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln">45</span><span class="tk-kw">var</span> _mm: <span class="tk-ty">MultiMesh</span></code></pre></div><!--/code-->
+<p>Karena senjata adalah anak pemain, MultiMesh kolam akan ikut bergerak bersama pemain. Supaya kolam tetap di tanah, MultiMeshInstance3D-nya diberi <code>top_level = true</code>: transformnya lepas dari induk. Kolam digambar dengan shader <code>ground_decal.gdshader</code> pada PlaneMesh rebah, bukan billboard.</p>
+<figure><img src="assets/img/p3_weapons.webp" alt="Fase 3: pemain di tengah kolam air suci biru, salib perak memantul, pisau melayang" width="1280" height="720" loading="lazy"><figcaption>Fase 3: kolam air suci (Hallowed Vial), salib memantul (Pilgrim's Cross), pisau (Silverthorn Knives).</figcaption></figure>
+
+<h2 id="bounce-screen">Pantul di tepi layar</h2>
+<p>Salib memantul di tepi layar, bukan di tepi dunia (dunia tak terbatas). Game memberi ProjectileField persegi tanah yang terlihat setiap frame, dihitung dari ukuran kamera ortho:</p>
+<div class="code" data-src="core/camera_rig.gd" data-from="^## Ground rect" data-to="^## amount in 0..1"><div class="file"><span><b>core/camera_rig.gd</b> · baris 55–60</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">55</span><span class="tk-com">## Ground rect (x, z) visible around the rig, for the orthographic camera.</span>
+<span class="ln">56</span><span class="tk-kw">func</span> <span class="tk-fn">ground_view_rect</span>() -&gt; <span class="tk-ty">Rect2</span>:
+<span class="ln">57</span>    <span class="tk-kw">var</span> vp := <span class="tk-fn">get_viewport</span>().<span class="tk-fn">get_visible_rect</span>().size
+<span class="ln">58</span>    <span class="tk-kw">var</span> half := <span class="tk-ty">Vector2</span>(ortho_size * <span class="tk-num">0.5</span> * vp.x / vp.y,
+<span class="ln">59</span>        ortho_size * <span class="tk-num">0.5</span> / <span class="tk-fn">sin</span>(<span class="tk-fn">deg_to_rad</span>(pitch_degrees)))
+<span class="ln">60</span>    <span class="tk-kw">return</span> <span class="tk-ty">Rect2</span>(<span class="tk-ty">Vector2</span>(global_position.x, global_position.z) - half, half * <span class="tk-num">2.0</span>)</code></pre></div><!--/code-->
+<p>Tinggi yang terlihat di tanah adalah <code>ortho_size / sin(pitch)</code>: layar 13 unit, tapi karena tanah miring, yang terlihat di tanah ≈ 17 unit. Lebar mengikuti rasio jendela.</p>
+
+<h2 id="tambah-senjata">Resep menambah senjata</h2>
+<ol class="steps">
+  <li>Skrip <code>weapons/&lt;nama&gt;/&lt;nama&gt;_weapon.gd</code> yang <code>extends Weapon</code> dan meng-override <code>tick(dt, game)</code>. Baca angka hanya lewat helper (<code>damage()</code>, <code>area()</code>, …).</li>
+  <li>Scene <code>&lt;nama&gt;_weapon.tscn</code>: root Node3D dengan skrip itu (tambahkan visual kalau perlu).</li>
+  <li><code>data/weapons/&lt;nama&gt;.tres</code> (WeaponData): ikon, <code>scene</code>, base stats, dan tabel <code>levels</code>.</li>
+  <li>Masukkan .tres ke <code>weapons</code> di <code>data/upgrade_pool.tres</code>.</li>
+</ol>
+<p>Tidak ada switch-case di Game, tidak ada daftar senjata di kode. <code>Player.add_weapon()</code> meng-instance <code>data.scene</code> dan Game memanggil <code>tick</code> pada setiap senjata.</p>
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li>Tekan <kbd>F5</kbd> (debug): semua senjata di pool masuk ke loadout di level maksimal.</li>
+    <li>Pisau mengarah ke musuh terdekat dan sprite-nya menunjuk ke arah terbang. Salib memantul di tepi layar. Manik mengitari pemain dengan jarak tetap. Vial melengkung lalu meninggalkan kolam yang tetap di tempat saat kamu berjalan.</li>
+    <li>Panel debug menunjukkan jumlah proyektil; ratusan proyektil tidak menurunkan FPS secara berarti.</li>
+  </ul>
+</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>Pisau menembus satu musuh tapi memberi damage 20 kali.</b> Hit memory tidak diisi, atau diisi dengan indeks slot (yang berubah) alih-alih uid.</li>
+    <li><b>Kolam ikut berjalan bersama pemain.</b> Lupa <code>top_level = true</code> pada MultiMeshInstance3D kolam.</li>
+    <li><b>Pisau miring ke arah yang salah saat terbang ke atas/bawah layar.</b> Sudut dihitung dari <code>atan2(v.y, v.x)</code> tanpa <code>-</code> dan tanpa faktor <code>sin(pitch)</code>.</li>
+    <li><b>Proyektil "menghilang" acak.</b> <code>_remove_at</code> lupa menyalin salah satu array (misalnya <code>memory</code>), jadi proyektil yang dipindah membawa data proyektil lain.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Tambahkan level 9 ke Silverthorn Knives yang memberi <code>+2 pierce</code>, cukup lewat Inspector. Kartu level up akan menampilkan "+2 pierce" otomatis dari <code>WeaponLevel.text()</code>.</li>
+    <li>Ubah <code>HIT_MEMORY</code> ke 1 dan pakai Pilgrim's Cross di gerombolan padat. Apa yang terjadi pada salib yang memantul bolak-balik antara dua musuh?</li>
+    <li>Buat senjata baru "Censer Swing" yang setiap 2 detik menembakkan 8 proyektil melingkar (pakai <code>Vector2.from_angle(TAU * k / 8)</code>).</li>
+  </ol>
+</div>
+<nav class="pager" id="pager" aria-label="Halaman sebelumnya dan berikutnya"></nav>
+</article>
+</main>
+</div>
+<script src="assets/search-index.js?v=f641e385"></script>
+<script src="assets/site.js?v=3fa56380"></script>
+<script src="assets/demos.js?v=4520dcc1"></script>
+<script src="assets/demos-swarm.js?v=36474919"></script>
+<script src="assets/demos-systems.js?v=9a72b9ac"></script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Knellbound dari Nol</title>
+<meta name="description" content="Panduan belajar membangun Knellbound, survivors-like 2.5D di Godot 4, dari proyek kosong sampai 8 fase selesai.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Pixelify+Sans:wght@500;600&display=swap">
+<link rel="stylesheet" href="assets/style.css?v=5213953b">
+<script>try{var t=JSON.parse(localStorage.getItem("kb-theme"));if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="index">
+<header class="topbar">
+<button id="menu-btn" class="icon-btn" type="button" aria-label="Buka daftar bab"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Bab</button>
+<a class="brand" href="index.html">Knellbound <span>dari Nol</span></a>
+<span class="spacer"></span>
+<div class="search-wrap"><input id="search" type="search" placeholder="Cari… (tekan /)" aria-label="Cari di panduan" autocomplete="off"><div id="search-results" hidden></div></div>
+<button id="theme-btn" class="icon-btn" type="button" aria-label="Ganti tema"></button>
+<div class="progress-line"></div>
+</header>
+<div class="layout">
+<nav class="sidebar" id="sidebar" aria-label="Daftar bab"></nav>
+<main>
+<article class="article">
+<section class="hero">
+  <div>
+    <span class="eyebrow">Panduan belajar · Godot 4.7 · GDScript</span>
+    <h1>Bangun <em>Knellbound</em> dari proyek kosong</h1>
+    <p class="lede">Game survivors-like 2.5D: dunia 3D, sprite pixel art berdiri menghadap kamera miring 50°, ribuan musuh di layar. Panduan ini mengikuti urutan asli pembuatannya, 8 fase, dan menjelaskan <b>kenapa</b> tiap keputusan diambil.</p>
+  </div>
+  <figure>
+    <img src="assets/img/late_boss.webp" alt="Knellbound menit 10: Hunter dengan lima senjata evolusi di tengah ratusan musuh, angka damage beterbangan" width="1280" height="720">
+    <figcaption>Screenshot asli dari repo (HEAD): menit 10, lima senjata sudah berevolusi, 320 musuh hidup, 60 FPS.</figcaption>
+  </figure>
+</section>
+
+<h2 id="untuk-siapa">Untuk siapa panduan ini</h2>
+<p>Untuk kamu yang sudah pernah membuka Godot dan menulis sedikit GDScript, lalu ingin paham cara membuat game yang lengkap: dari gerak pemain sampai save file, dari shader sampai menu. Kamu tidak perlu pernah membuat game 3D. Kamu juga tidak perlu jago matematika; vektor dan sedikit trigonometri dijelaskan saat dipakai, dengan demo yang bisa kamu mainkan.</p>
+<p>Tujuannya bukan menyalin kode. Kode lengkap sudah ada di repo. Tujuannya supaya kamu bisa menjawab pertanyaan seperti:</p>
+<ul>
+  <li>Kenapa 1000 musuh tidak dibuat sebagai 1000 node, dan apa gantinya?</li>
+  <li>Kenapa semua sistem tidak punya <code>_process</code> sendiri?</li>
+  <li>Bagaimana sprite 2D bisa berdiri di dunia 3D tanpa terlihat gepeng?</li>
+  <li>Bagaimana game di-pause tapi layar level up tetap bisa dianimasikan?</li>
+  <li>Bagaimana menyimpan save supaya tidak rusak kalau game crash di tengah menulis?</li>
+</ul>
+
+<h2 id="cara-membaca">Cara membaca</h2>
+<p>Setiap bab fase punya struktur yang sama. Kotak berwarna menandai jenis isinya:</p>
+<div class="goal"><span class="tag">Tujuan</span>Apa yang bisa dilakukan game di akhir bab.</div>
+<div class="callout"><span class="tag">Konsep</span>Teori game dev atau fitur Godot yang dipakai, dijelaskan sebelum kodenya.</div>
+<div class="checkpoint"><span class="tag">Checkpoint</span>Jalankan game (<kbd>F5</kbd>) dan pastikan kamu melihat hal yang disebut. Jangan lanjut kalau belum.</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>Bug yang biasa muncul di langkah itu dan cara melacaknya.</div>
+<div class="exercise"><span class="tag">Latihan</span>Tugas kecil untuk menguji pemahamanmu. Kebanyakan cukup mengubah satu file.</div>
+<p>Blok kode selalu dikutip dari repo, lengkap dengan path dan nomor baris. Kutipan dari fase lama diberi tanda commit (mis. <code>@3f048ff</code>) supaya kamu bisa membandingkan dengan versi sekarang. Klik gambar untuk memperbesar. Tekan <kbd>/</kbd> untuk mencari.</p>
+
+<h2 id="riwayat-git">Riwayat git: cabang <code>main</code> dan <code>history</code></h2>
+<p>Cabang <code>main</code> berisi satu commit rapi berisi game akhir. Riwayat per fase disimpan di cabang <code>history</code>. Tiap bab menyebut commit fasenya. Untuk melihat kode persis seperti di akhir suatu fase tanpa mengganggu folder kerjamu, buat worktree terpisah:</p>
+<div class="code"><div class="file"><span><b>terminal</b></span></div><pre><code>git log --oneline history          <span class="tk-com"># 3f048ff Phase 1 … 3b55d3c Phase 8</span>
+git worktree add ../knellbound-fase1 3f048ff
+<span class="tk-com"># buka ../knellbound-fase1/project.godot di Godot, lalu setelah selesai:</span>
+git worktree remove ../knellbound-fase1</code></pre></div>
+<div class="table-wrap"><table>
+  <thead><tr><th>Fase</th><th>Commit</th><th>Isi utama</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><code>3f048ff</code></td><td>Scene 2.5D, kamera miring, EnemySwarm (MultiMesh), SpatialHash, Holy Aura</td></tr>
+    <tr><td>2</td><td><code>2bd6ca3</code></td><td>GemField, Stats + StatModifier, Leveling, layar level up (reroll/skip/banish)</td></tr>
+    <tr><td>3</td><td><code>b84a4fb</code></td><td>WeaponLevel, ProjectileField, 4 senjata baru</td></tr>
+    <tr><td>4</td><td><code>35887be</code></td><td>13 pasif, 5 evolusi, peti, loadout HUD</td></tr>
+    <tr><td>5</td><td><code>80f5c88</code></td><td>Perilaku musuh, WaveTable 30 menit, elite, boss, Knellwraith</td></tr>
+    <tr><td>5b</td><td><code>4fe0308</code></td><td>Panel debug HUD multi-baris, <kbd>H</kbd> menyembunyikan bantuan tombol</td></tr>
+    <tr><td>6</td><td><code>464f917</code></td><td>Pickup sebagai data, objek pecahan, angka damage, efek, shake, hit-stop</td></tr>
+    <tr><td>7</td><td><code>0c823de</code></td><td>Tema UI, font pixel, HUD lengkap, pause/options, ringkasan run, title</td></tr>
+    <tr><td>8</td><td><code>3b55d3c</code></td><td>Save/load atomik, toko Reliquary, 5 hunter, audio</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="peta-bab">Peta bab</h2>
+<div class="chapter-grid" id="chapter-grid"></div>
+
+<h2 id="pohon-scene">Pohon scene sebuah run</h2>
+<p>Ini isi <code>scenes/main.tscn</code> di akhir Fase 8. Perhatikan betapa sedikit node-nya untuk game dengan ribuan objek: setiap "Field" adalah satu node yang menggambar ratusan sampai ribuan objek sekaligus.</p>
+<div class="tree">Main <span class="t-type">(Node3D)</span>  <span class="t-script">core/game.gd → Game</span>
+├─ WorldEnvironment, Sun
+├─ Ground <span class="t-type">(MeshInstance3D)</span>         tanah, digeser mengikuti pemain
+├─ Decor <span class="t-type">(Node3D)</span>                  <span class="t-script">world/decor_field.gd</span>  rumput, batu, nisan
+├─ Player <span class="t-type">(player.tscn)</span>          <span class="t-script">player/player.gd</span>
+│  ├─ Shadow, Sprite <span class="t-type">(Sprite3D, billboard Y)</span>, HpBar
+│  └─ Weapons <span class="t-type">(Node3D)</span>             senjata = child node, dibuat saat run
+├─ EnemySwarm                  <span class="t-script">enemies/enemy_swarm.gd</span>   ≤ 4000 musuh, 4 MultiMesh
+├─ GemField                    <span class="t-script">pickups/gem_field.gd</span>     ≤ 400 gem XP
+├─ ProjectileField             <span class="t-script">weapons/projectile_field.gd</span> ≤ 2048 proyektil
+├─ EnemyShotField              <span class="t-script">enemies/enemy_shot_field.gd</span>
+├─ PickupField                 <span class="t-script">pickups/pickup_field.gd</span>  peti, makanan, koin, bom
+├─ EffectField                 <span class="t-script">fx/effect_field.gd</span>       asap, darah, ledakan
+├─ DamageNumberField           <span class="t-script">fx/damage_number_field.gd</span>
+├─ SpawnDirector <span class="t-type">(Node)</span>         <span class="t-script">enemies/spawn_director.gd</span>  membaca data/waves/night.tres
+├─ BreakableSpawner <span class="t-type">(Node)</span>      <span class="t-script">world/breakable_spawner.gd</span>
+├─ CameraRig <span class="t-type">(Node3D)</span>           <span class="t-script">core/camera_rig.gd</span>
+│  └─ Camera3D                  orthographic, pitch 50°
+├─ HUD <span class="t-type">(CanvasLayer)</span>            <span class="t-script">ui/hud.gd</span>
+├─ LevelUpScreen, ChestScreen  <span class="t-type">(CanvasLayer, process ALWAYS)</span>
+└─ PauseMenu, GameOverScreen   <span class="t-type">(CanvasLayer, process ALWAYS)</span>
+
+Autoload (selalu ada, di luar scene): SaveData · Audio · Settings · SceneFader</div>
+
+<h2 id="alur-data">Alur data dalam satu frame</h2>
+<p>Satu-satunya tempat urutan update ditentukan adalah <code>Game._process</code>. Game memanggil <code>tick()</code> milik tiap sistem, sistem mengembalikan hasil atau memancarkan sinyal, dan Game yang memutuskan efeknya. Panah tebal = panggilan langsung dari Game; panah putus-putus = sinyal kembali ke Game.</p>
+<div class="diagram">
+<svg viewBox="0 0 900 470" role="img" aria-label="Diagram alur data: Game memanggil tick tiap sistem dan menerima sinyal">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="muted"></path></marker></defs>
+  <rect x="360" y="190" width="180" height="70" rx="6" class="box-hot"></rect>
+  <text x="450" y="220" text-anchor="middle" font-weight="700" font-size="17">Game</text>
+  <text x="450" y="242" text-anchor="middle" font-size="12" class="muted">_process(delta)</text>
+
+  <rect x="30" y="20" width="170" height="54" rx="6" class="box"></rect>
+  <text x="115" y="44" text-anchor="middle" font-size="14" font-weight="700">Player</text><text x="115" y="62" text-anchor="middle" font-size="11" class="muted">tick(dt): input → pos2</text>
+  <rect x="230" y="20" width="200" height="54" rx="6" class="box"></rect>
+  <text x="330" y="44" text-anchor="middle" font-size="14" font-weight="700">EnemySwarm</text><text x="330" y="62" text-anchor="middle" font-size="11" class="muted">tick · collide_player · flush_dead</text>
+  <rect x="460" y="20" width="200" height="54" rx="6" class="box"></rect>
+  <text x="560" y="44" text-anchor="middle" font-size="14" font-weight="700">Weapons (child Player)</text><text x="560" y="62" text-anchor="middle" font-size="11" class="muted">w.tick(dt, game)</text>
+  <rect x="690" y="20" width="180" height="54" rx="6" class="box"></rect>
+  <text x="780" y="44" text-anchor="middle" font-size="14" font-weight="700">ProjectileField</text><text x="780" y="62" text-anchor="middle" font-size="11" class="muted">spawn(shot) · tick</text>
+
+  <rect x="30" y="200" width="200" height="54" rx="6" class="box-holy"></rect>
+  <text x="130" y="224" text-anchor="middle" font-size="14" font-weight="700">GemField / PickupField</text><text x="130" y="242" text-anchor="middle" font-size="11" class="muted">drop · tick → XP / index</text>
+  <rect x="680" y="200" width="190" height="54" rx="6" class="box"></rect>
+  <text x="775" y="224" text-anchor="middle" font-size="14" font-weight="700">SpawnDirector</text><text x="775" y="242" text-anchor="middle" font-size="11" class="muted">WaveTable · BossBrain</text>
+
+  <rect x="30" y="380" width="200" height="54" rx="6" class="box-gold"></rect>
+  <text x="130" y="404" text-anchor="middle" font-size="14" font-weight="700">LevelUpScreen / Chest</text><text x="130" y="422" text-anchor="middle" font-size="11" class="muted">view: emit picked / closed</text>
+  <rect x="260" y="380" width="180" height="54" rx="6" class="box-gold"></rect>
+  <text x="350" y="404" text-anchor="middle" font-size="14" font-weight="700">HUD</text><text x="350" y="422" text-anchor="middle" font-size="11" class="muted">refresh(game)</text>
+  <rect x="470" y="380" width="180" height="54" rx="6" class="box"></rect>
+  <text x="560" y="404" text-anchor="middle" font-size="14" font-weight="700">CameraRig</text><text x="560" y="422" text-anchor="middle" font-size="11" class="muted">tick · shake · view rect</text>
+  <rect x="680" y="380" width="190" height="54" rx="6" class="box-holy"></rect>
+  <text x="775" y="404" text-anchor="middle" font-size="14" font-weight="700">Autoload</text><text x="775" y="422" text-anchor="middle" font-size="11" class="muted">SaveData · Audio · Settings</text>
+
+  <path d="M400,190 L140,76" class="arrow" stroke-width="2" marker-end="url(#ah)"></path>
+  <path d="M430,190 L340,76" class="arrow" stroke-width="2" marker-end="url(#ah)"></path>
+  <path d="M470,190 L555,76" class="arrow" stroke-width="2" marker-end="url(#ah)"></path>
+  <path d="M520,190 L760,76" class="arrow" stroke-width="2" marker-end="url(#ah)"></path>
+  <path d="M660,47 L690,47" class="arrow" marker-end="url(#ah)"></path>
+  <text x="675" y="98" text-anchor="middle" font-size="10.5" class="muted">spawn</text>
+  <path d="M690,64 C600,120 470,110 430,76" class="arrow" stroke-dasharray="3 3" marker-end="url(#ah)"></path>
+  <text x="560" y="122" text-anchor="middle" font-size="10.5" class="muted">query_circle + damage_enemy</text>
+  <path d="M290,76 C260,140 300,170 370,196" class="arrow" stroke-dasharray="5 4" marker-end="url(#ah)"></path>
+  <text x="250" y="150" font-size="10.5" class="muted">sinyal enemy_died</text>
+  <path d="M360,225 L232,225" class="arrow" stroke-width="2" marker-end="url(#ah)"></path>
+  <path d="M540,225 L678,225" class="arrow" stroke-width="2" marker-end="url(#ah)"></path>
+  <path d="M400,260 L160,378" class="arrow" stroke-width="2" marker-end="url(#ah)"></path>
+  <path d="M100,378 C80,330 260,300 375,262" class="arrow" stroke-dasharray="5 4" marker-end="url(#ah)"></path>
+  <text x="140" y="330" font-size="10.5" class="muted">sinyal picked</text>
+  <path d="M440,260 L360,378" class="arrow" stroke-width="2" marker-end="url(#ah)"></path>
+  <path d="M480,260 L550,378" class="arrow" stroke-width="2" marker-end="url(#ah)"></path>
+  <path d="M530,258 L760,378" class="arrow" marker-end="url(#ah)"></path>
+  <text x="250" y="300" font-size="10.5" class="muted">pending_levels &gt; 0</text>
+</svg>
+</div>
+<p>Demo berikut menjalankan urutan itu pelan-pelan. Coba tekan "Ambil gem" lalu perhatikan bahwa layar level up baru dibuka di langkah terakhir, bukan di tengah frame.</p>
+<div class="demo" data-demo="frame"></div>
+
+<h2 id="aturan-inti">Lima aturan inti</h2>
+<p>Kalau kamu hanya mengingat satu bagian dari panduan ini, ingat lima aturan dari <code>ARCHITECTURE.md</code> ini. Semua bab menjelaskan kenapa aturan ini ada.</p>
+<ol class="steps">
+  <li><b>Gameplay di bidang 2D <code>Vector2(x, z)</code>.</b> Node 3D hanya untuk tampilan. Tabrakan, jarak, dan gerak dihitung di 2D, jadi murah dan sederhana.</li>
+  <li><b>Objek massal = packed array paralel + MultiMesh.</b> Satu <code>RenderingServer.multimesh_set_buffer</code> per frame per jenis objek, bukan satu node per musuh.</li>
+  <li><b>Urutan update hanya di <code>Game._process</code>.</b> Sistem tidak punya <code>_process</code>; mereka punya <code>tick(dt, ...)</code>.</li>
+  <li><b>Tabrakan lewat <code>SpatialHash</code></b> yang dibangun ulang tiap frame dengan counting sort.</li>
+  <li><b>Konten adalah data.</b> Musuh, senjata, pasif, wave, pickup, karakter, toko: semuanya Resource <code>.tres</code> di <code>data/</code>.</li>
+</ol>
+<figure>
+  <img src="assets/img/p1_clip.webp" alt="Animasi asli Fase 1: pemain berjalan zig-zag, gerombolan ghoul dan kelelawar mengejar, aura biru mendorong mereka" width="640" height="360">
+  <figcaption>Rekaman asli Fase 1 (commit <code>3f048ff</code>): pemain berjalan zig-zag, ratusan musuh mengejar, Holy Aura mendorong yang terlalu dekat.</figcaption>
+</figure>
+<nav class="pager" id="pager" aria-label="Halaman sebelumnya dan berikutnya"></nav>
+</article>
+</main>
+</div>
+<script src="assets/search-index.js?v=f641e385"></script>
+<script src="assets/site.js?v=3fa56380"></script>
+<script src="assets/demos.js?v=4520dcc1"></script>
+<script src="assets/demos-swarm.js?v=36474919"></script>
+<script src="assets/demos-systems.js?v=9a72b9ac"></script>
+</body>
+</html>

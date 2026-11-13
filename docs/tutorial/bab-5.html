@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Bab 5 · Perilaku Musuh, Wave dan Boss</title>
+<meta name="description" content="Fase 5 Knellbound: perilaku per slot di satu loop, proyektil musuh, WaveTable 30 menit berbasis data, event ring/line/burst, elite dengan tint shader, BossBrain, dan Knellwraith.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Pixelify+Sans:wght@500;600&display=swap">
+<link rel="stylesheet" href="assets/style.css?v=5213953b">
+<script>try{var t=JSON.parse(localStorage.getItem("kb-theme"));if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="bab-5">
+<header class="topbar">
+<button id="menu-btn" class="icon-btn" type="button" aria-label="Buka daftar bab"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Bab</button>
+<a class="brand" href="index.html">Knellbound <span>dari Nol</span></a>
+<span class="spacer"></span>
+<div class="search-wrap"><input id="search" type="search" placeholder="Cari… (tekan /)" aria-label="Cari di panduan" autocomplete="off"><div id="search-results" hidden></div></div>
+<button id="theme-btn" class="icon-btn" type="button" aria-label="Ganti tema"></button>
+<div class="progress-line"></div>
+</header>
+<div class="layout">
+<nav class="sidebar" id="sidebar" aria-label="Daftar bab"></nav>
+<main>
+<article class="article">
+<span class="eyebrow">Bab 5 · Fase 5 · commit 80f5c88</span>
+<h1>Perilaku Musuh, Wave dan Boss</h1>
+<p class="lede">Gerombolan yang hanya mengejar cepat membosankan. Fase 5 memberi musuh perilaku berbeda, menulis seluruh malam 30 menit sebagai satu file data, dan menambah elite serta boss, tanpa satu node pun per musuh.</p>
+<div class="goal"><span class="tag">Tujuan</span>Kelelawar berkelok, acolyte menjaga jarak dan menembak, lingkaran wisp menyempit lalu lewat, kolom tengkorak menyeberang layar. Menit 10 Hollow Abbot datang dengan bar HP di HUD; menit 20 Vesperine; menit 30 semua musuh hilang dan Knellwraith yang tak bisa dibunuh mulai memburu.</div>
+<div class="shots">
+  <figure><img src="assets/img/p5_boss.webp" alt="Fase 5 menit 10: bar HP The Hollow Abbot di atas layar, boss mendekat dari kanan" width="1280" height="720" loading="lazy"><figcaption>Fase 5, menit 10:02: Hollow Abbot muncul, bar boss di HUD.</figcaption></figure>
+  <figure><img src="assets/img/p5_wave.webp" alt="Fase 5 menit 10: tengkorak dan kelelawar mengepung pemain dan aura" width="1280" height="720" loading="lazy"><figcaption>Beberapa detik kemudian: skeleton dan kelelawar dari entry yang aktif di menit 10.</figcaption></figure>
+</div>
+
+<h2 id="perilaku">Perilaku sebagai data per slot</h2>
+<p>Pendekatan berorientasi objek akan membuat subclass <code>Bat</code>, <code>Acolyte</code>, dst. Di sini perilaku hanyalah <b>satu angka per slot</b> (<code>behavior[i]</code>) dan loop <code>tick</code> bercabang di atasnya.</p>
+<div class="code" data-src="enemies/enemy_data.gd" data-from="^## How EnemySwarm.tick moves" data-to="^@export var id"><div class="file"><span><b>enemies/enemy_data.gd</b> · baris 7–15</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 7</span><span class="tk-com">## How EnemySwarm.tick moves the enemy. Stored as int in .tres: append only.</span>
+<span class="ln"> 8</span><span class="tk-kw">enum</span> Behavior {
+<span class="ln"> 9</span>    CHASE,     <span class="tk-com">## straight at the player</span>
+<span class="ln">10</span>    WEAVE,     <span class="tk-com">## chase with a sideways sine wobble (bats)</span>
+<span class="ln">11</span>    RANGED,    <span class="tk-com">## hold `preferred_range`, strafe, fire enemy shots</span>
+<span class="ln">12</span>    DRIFT,     <span class="tk-com">## fixed direction set at spawn, despawns after its life (rings, lines)</span>
+<span class="ln">13</span>    SCRIPTED,  <span class="tk-com">## velocity written from outside each frame (BossBrain)</span>
+<span class="ln">14</span>    STATIC,    <span class="tk-com">## never moves, never pushed (breakable props, see BreakableData)</span>
+<span class="ln">15</span>}</code></pre></div><!--/code-->
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^func tick" data-to="^## Keep .preferred_range."><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 254–303</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">254</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(dt: <span class="tk-ty">float</span>, target: <span class="tk-ty">Vector2</span>, shots: EnemyShotField) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">255</span>    <span class="tk-kw">var</span> decay := <span class="tk-fn">exp</span>(-knock_decay * dt)
+<span class="ln">256</span>    <span class="tk-kw">var</span> far2 := relocate_distance * relocate_distance
+<span class="ln">257</span>    <span class="tk-kw">var</span> flash_drop := dt * <span class="tk-num">8.0</span>
+<span class="ln">258</span>    <span class="tk-kw">for</span> i <span class="tk-kw">in</span> count:
+<span class="ln">259</span>        <span class="tk-kw">var</span> p := pos[i]
+<span class="ln">260</span>        <span class="tk-kw">var</span> d := target - p
+<span class="ln">261</span>        <span class="tk-kw">var</span> l2 := d.<span class="tk-fn">length_squared</span>()
+<span class="ln">262</span>        <span class="tk-kw">var</span> b := behavior[i]
+<span class="ln">263</span>        <span class="tk-kw">var</span> v := <span class="tk-ty">Vector2</span>.ZERO
+<span class="ln">264</span>        <span class="tk-kw">if</span> b &lt;= RANGED:  <span class="tk-com"># CHASE, WEAVE, RANGED: steer at the player</span>
+<span class="ln">265</span>            <span class="tk-kw">if</span> l2 &gt; far2:
+<span class="ln">266</span>                <span class="tk-com"># Left behind: wrap around to the side the player is heading to.</span>
+<span class="ln">267</span>                pos[i] = target + d.<span class="tk-fn">normalized</span>() * relocate_radius
+<span class="ln">268</span>                <span class="tk-kw">continue</span>
+<span class="ln">269</span>            <span class="tk-kw">if</span> l2 &gt; <span class="tk-num">0.0001</span>:
+<span class="ln">270</span>                <span class="tk-kw">var</span> inv := <span class="tk-num">1.0</span> / <span class="tk-fn">sqrt</span>(l2)
+<span class="ln">271</span>                v = d * (speed[i] * inv)
+<span class="ln">272</span>                <span class="tk-kw">if</span> b == WEAVE:
+<span class="ln">273</span>                    <span class="tk-kw">var</span> t := type_idx[i]
+<span class="ln">274</span>                    <span class="tk-kw">var</span> w := timer[i] + dt
+<span class="ln">275</span>                    timer[i] = w
+<span class="ln">276</span>                    v += <span class="tk-ty">Vector2</span>(-v.y, v.x) * (_t_weave_amt[t] * <span class="tk-fn">sin</span>(w * _t_weave_freq[t]))
+<span class="ln">277</span>                <span class="tk-kw">elif</span> b == RANGED:
+<span class="ln">278</span>                    v = <span class="tk-fn">_ranged</span>(i, dt, p, d, l2 * inv, v, shots)
+<span class="ln">279</span>            <span class="tk-kw">if</span> d.x &gt; <span class="tk-num">0.05</span>:
+<span class="ln">280</span>                facing[i] = <span class="tk-num">1.0</span>
+<span class="ln">281</span>            <span class="tk-kw">elif</span> d.x &lt; -<span class="tk-num">0.05</span>:
+<span class="ln">282</span>                facing[i] = -<span class="tk-num">1.0</span>
+<span class="ln">283</span>        <span class="tk-kw">else</span>:  <span class="tk-com"># DRIFT, SCRIPTED: move along `dir` (STATIC: dir stays zero)</span>
+<span class="ln">284</span>            <span class="tk-kw">if</span> b == DRIFT:
+<span class="ln">285</span>                v = dir[i] * speed[i]
+<span class="ln">286</span>                timer[i] -= dt
+<span class="ln">287</span>                <span class="tk-kw">if</span> timer[i] &lt;= <span class="tk-num">0.0</span> <span class="tk-kw">and</span> hp[i] &gt; <span class="tk-num">0.0</span>:
+<span class="ln">288</span>                    hp[i] = <span class="tk-num">0.0</span>
+<span class="ln">289</span>                    flags[i] |= SILENT
+<span class="ln">290</span>                    _dead.<span class="tk-fn">append</span>(i)
+<span class="ln">291</span>            <span class="tk-kw">else</span>:
+<span class="ln">292</span>                v = dir[i]
+<span class="ln">293</span>            <span class="tk-kw">if</span> v.x &gt; <span class="tk-num">0.05</span>:
+<span class="ln">294</span>                facing[i] = <span class="tk-num">1.0</span>
+<span class="ln">295</span>            <span class="tk-kw">elif</span> v.x &lt; -<span class="tk-num">0.05</span>:
+<span class="ln">296</span>                facing[i] = -<span class="tk-num">1.0</span>
+<span class="ln">297</span>        <span class="tk-kw">var</span> k := knock[i]
+<span class="ln">298</span>        pos[i] = p + (v + k) * dt
+<span class="ln">299</span>        knock[i] = k * decay
+<span class="ln">300</span>        <span class="tk-kw">if</span> flash[i] &gt; <span class="tk-num">0.0</span>:
+<span class="ln">301</span>            flash[i] = <span class="tk-fn">maxf</span>(<span class="tk-num">0.0</span>, flash[i] - flash_drop)
+<span class="ln">302</span>    _grid.<span class="tk-fn">build</span>(pos, count)
+<span class="ln">303</span>    <span class="tk-fn">_separate</span>()</code></pre></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">b &lt;= RANGED</b>Urutan enum dimanfaatkan: CHASE=0, WEAVE=1, RANGED=2 semuanya "kejar pemain dan boleh direlokasi". Itu sebabnya komentar di enum berkata <i>append only</i>.</li>
+  <li><b class="ln">WEAVE</b><code>Vector2(-v.y, v.x)</code> adalah <code>v</code> diputar 90°. Ditambah dengan amplitudo × sin(waktu × frekuensi), musuh berkelok di kiri-kanan jalurnya.</li>
+  <li><b class="ln">_t_*</b>Parameter perilaku per <b>tipe</b> (bukan per slot) disimpan di array <code>_t_weave_amt</code>, <code>_t_range</code>, … diisi saat tipe pertama kali di-spawn. Loop panas tidak pernah menyentuh Resource.</li>
+  <li><b class="ln">DRIFT</b>Bergerak lurus menurut <code>dir</code>, dan saat <code>timer</code> habis menghapus diri dengan flag <code>SILENT</code>: <code>flush_dead</code> tidak memancarkan <code>enemy_died</code>, jadi tidak ada gem atau kill.</li>
+</ul>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="^## Keep .preferred_range." data-to="^func _separate"><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 306–330</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">306</span><span class="tk-com">## Keep `preferred_range` (approach / back off / strafe) and fire when the</span>
+<span class="ln">307</span><span class="tk-com">## cooldown is up and the player is within reach. `chase_v` = full-speed</span>
+<span class="ln">308</span><span class="tk-com">## velocity toward the player, `dist` = distance to it.</span>
+<span class="ln">309</span><span class="tk-kw">func</span> <span class="tk-fn">_ranged</span>(i: <span class="tk-ty">int</span>, dt: <span class="tk-ty">float</span>, p: <span class="tk-ty">Vector2</span>, d: <span class="tk-ty">Vector2</span>, dist: <span class="tk-ty">float</span>, chase_v: <span class="tk-ty">Vector2</span>,
+<span class="ln">310</span>        shots: EnemyShotField) -&gt; <span class="tk-ty">Vector2</span>:
+<span class="ln">311</span>    <span class="tk-kw">var</span> t := type_idx[i]
+<span class="ln">312</span>    <span class="tk-kw">var</span> want := _t_range[t]
+<span class="ln">313</span>    <span class="tk-kw">var</span> v: <span class="tk-ty">Vector2</span>
+<span class="ln">314</span>    <span class="tk-kw">if</span> dist &gt; want + <span class="tk-num">0.75</span>:
+<span class="ln">315</span>        v = chase_v
+<span class="ln">316</span>    <span class="tk-kw">elif</span> dist &lt; want - <span class="tk-num">1.5</span>:
+<span class="ln">317</span>        v = chase_v * -<span class="tk-num">0.6</span>
+<span class="ln">318</span>    <span class="tk-kw">else</span>:
+<span class="ln">319</span>        <span class="tk-com"># Strafe around the player; direction per enemy from uid parity.</span>
+<span class="ln">320</span>        v = <span class="tk-ty">Vector2</span>(-chase_v.y, chase_v.x) * (<span class="tk-num">0.35</span> <span class="tk-kw">if</span> uid[i] &amp; <span class="tk-num">1</span> <span class="tk-kw">else</span> -<span class="tk-num">0.35</span>)
+<span class="ln">321</span>    <span class="tk-kw">var</span> cd := timer[i] - dt
+<span class="ln">322</span>    <span class="tk-kw">if</span> cd &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">323</span>        <span class="tk-kw">if</span> dist &lt; want + <span class="tk-num">4.0</span>:
+<span class="ln">324</span>            <span class="tk-kw">var</span> data := types[t]
+<span class="ln">325</span>            shots.<span class="tk-fn">fire</span>(p, d * (data.shot_speed / dist), data.shot_damage, data.shot_row,
+<span class="ln">326</span>                data.shot_size, (want + <span class="tk-num">6.0</span>) / data.shot_speed)
+<span class="ln">327</span>            flash[i] = <span class="tk-num">0.6</span>
+<span class="ln">328</span>        cd += _t_interval[t]
+<span class="ln">329</span>    timer[i] = cd
+<span class="ln">330</span>    <span class="tk-kw">return</span> v</code></pre></div><!--/code-->
+<div class="demo" data-demo="behaviors"></div>
+<p>Tembakan musuh pergi ke <code>EnemyShotField</code>: packed array + MultiMesh lagi, tapi lebih sederhana dari ProjectileField karena hanya perlu mengecek satu lingkaran, yaitu pemain. Tidak perlu spatial hash, tidak perlu hit memory.</p>
+
+<h3 id="separasi-berbobot">Separasi berbobot radius</h3>
+<p>Fase 5 menambah musuh besar (Gravebound Brute, boss). Separasi Fase 1 mendorong kedua musuh sama kuat, sehingga brute tergeser oleh kelelawar. Versi baru membobot dorongan dengan porsi radius pihak lain:</p>
+<div class="code" data-src="enemies/enemy_swarm.gd" data-from="# Weighted by the other.s share" data-to="else:" data-hl="371"><div class="file"><span><b>enemies/enemy_swarm.gd</b> · baris 368–371</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">368</span>                        <span class="tk-com"># Weighted by the other&#x27;s share of the overlap: big enemies</span>
+<span class="ln">369</span>                        <span class="tk-com"># shove small ones aside and barely move (equal sizes: 1).</span>
+<span class="ln">370</span>                        <span class="tk-kw">var</span> dist := <span class="tk-fn">sqrt</span>(d2)
+<span class="hl"><span class="ln">371</span>                        push += dd * ((r - dist) / dist * <span class="tk-num">2.0</span> * radius[j] / r)</span></code></pre></div><!--/code-->
+<p><code>2·r_j / (r_i + r_j)</code> = 1 kalau ukurannya sama, mendekati 0 untuk musuh besar yang didorong musuh kecil, mendekati 2 untuk musuh kecil yang didorong musuh besar. Musuh besar menyibak gerombolan seperti seharusnya.</p>
+
+<h2 id="wave-table">WaveTable: malam 30 menit sebagai satu file</h2>
+<p>Director Fase 1 menaikkan laju terus-menerus. Fase 5 menggantinya dengan data yang bisa dibaca desainer:</p>
+<ul>
+  <li><b><code>WaveEntry</code></b> = aliran spawn kontinu dalam rentang menit <code>[start, end)</code>: daftar musuh berbobot, laju yang naik linear dari <code>rate_start</code> ke <code>rate_end</code>, batas <code>max_alive</code>, ukuran cluster. Entry boleh tumpang tindih; masing-masing punya akumulator sendiri.</li>
+  <li><b><code>WaveEvent</code></b> = sekali jalan di menit tertentu: RING, LINE, BURST, ELITE, BOSS.</li>
+  <li><b><code>WaveTable</code></b> = keduanya + pertumbuhan HP per menit + final minute + reaper.</li>
+</ul>
+<div class="code" data-src="enemies/wave_entry.gd"><div class="file"><span><b>enemies/wave_entry.gd</b> · baris 1–42</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> WaveEntry
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">Resource</span>
+<span class="ln"> 3</span><span class="tk-com">## One stream of continuous spawns, active from `start_minute` to `end_minute`.</span>
+<span class="ln"> 4</span><span class="tk-com">## Several entries may overlap; each keeps its own spawn accumulator.</span>
+<span class="ln"> 5</span>
+<span class="ln"> 6</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> start_minute := <span class="tk-num">0.0</span>
+<span class="ln"> 7</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> end_minute := <span class="tk-num">1.0</span>
+<span class="ln"> 8</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> enemies: <span class="tk-ty">Array</span>[EnemyData] = []
+<span class="ln"> 9</span><span class="tk-com">## Relative pick weight per enemy (same order). Empty = equal weights.</span>
+<span class="ln">10</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> weights: <span class="tk-ty">PackedFloat32Array</span> = []
+<span class="ln">11</span><span class="tk-com">## Spawns per second at start_minute, ramping linearly to `rate_end`.</span>
+<span class="ln">12</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> rate_start := <span class="tk-num">2.0</span>
+<span class="ln">13</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> rate_end := <span class="tk-num">4.0</span>
+<span class="ln">14</span><span class="tk-com">## This entry stops spawning while EnemySwarm.count is at or above this.</span>
+<span class="ln">15</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> max_alive := <span class="tk-num">300</span>
+<span class="ln">16</span><span class="tk-com">## Multiplies WaveTable&#x27;s time-based HP growth.</span>
+<span class="ln">17</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> hp_mult := <span class="tk-num">1.0</span>
+<span class="ln">18</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> cluster_min := <span class="tk-num">3</span>
+<span class="ln">19</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> cluster_max := <span class="tk-num">6</span>
+<span class="ln">20</span>
+<span class="ln">21</span>
+<span class="ln">22</span><span class="tk-kw">func</span> <span class="tk-fn">is_active</span>(minute: <span class="tk-ty">float</span>) -&gt; <span class="tk-ty">bool</span>:
+<span class="ln">23</span>    <span class="tk-kw">return</span> minute &gt;= start_minute <span class="tk-kw">and</span> minute &lt; end_minute
+<span class="ln">24</span>
+<span class="ln">25</span>
+<span class="ln">26</span><span class="tk-kw">func</span> <span class="tk-fn">rate_at</span>(minute: <span class="tk-ty">float</span>) -&gt; <span class="tk-ty">float</span>:
+<span class="ln">27</span>    <span class="tk-kw">var</span> t := <span class="tk-fn">inverse_lerp</span>(start_minute, end_minute, minute)
+<span class="ln">28</span>    <span class="tk-kw">return</span> <span class="tk-fn">lerpf</span>(rate_start, rate_end, <span class="tk-fn">clampf</span>(t, <span class="tk-num">0.0</span>, <span class="tk-num">1.0</span>))
+<span class="ln">29</span>
+<span class="ln">30</span>
+<span class="ln">31</span><span class="tk-kw">func</span> <span class="tk-fn">pick</span>() -&gt; EnemyData:
+<span class="ln">32</span>    <span class="tk-kw">if</span> weights.<span class="tk-fn">size</span>() != enemies.<span class="tk-fn">size</span>():
+<span class="ln">33</span>        <span class="tk-kw">return</span> enemies.<span class="tk-fn">pick_random</span>()
+<span class="ln">34</span>    <span class="tk-kw">var</span> total := <span class="tk-num">0.0</span>
+<span class="ln">35</span>    <span class="tk-kw">for</span> w <span class="tk-kw">in</span> weights:
+<span class="ln">36</span>        total += w
+<span class="ln">37</span>    <span class="tk-kw">var</span> r := <span class="tk-fn">randf</span>() * total
+<span class="ln">38</span>    <span class="tk-kw">for</span> k <span class="tk-kw">in</span> enemies.<span class="tk-fn">size</span>():
+<span class="ln">39</span>        r -= weights[k]
+<span class="ln">40</span>        <span class="tk-kw">if</span> r &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">41</span>            <span class="tk-kw">return</span> enemies[k]
+<span class="ln">42</span>    <span class="tk-kw">return</span> enemies[-<span class="tk-num">1</span>]</code></pre></div><!--/code-->
+<div class="code" data-src="enemies/wave_table.gd"><div class="file"><span><b>enemies/wave_table.gd</b> · baris 1–24</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> WaveTable
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">Resource</span>
+<span class="ln"> 3</span><span class="tk-com">## The whole run&#x27;s spawn schedule (data/waves/*.tres), read by SpawnDirector.</span>
+<span class="ln"> 4</span><span class="tk-com">## `entries` = continuous streams, `events` = one-shot spawns sorted by</span>
+<span class="ln"> 5</span><span class="tk-com">## minute, `final_minute` = when the night ends and `reaper` comes.</span>
+<span class="ln"> 6</span>
+<span class="ln"> 7</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> entries: <span class="tk-ty">Array</span>[WaveEntry] = []
+<span class="ln"> 8</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> events: <span class="tk-ty">Array</span>[WaveEvent] = []
+<span class="ln"> 9</span><span class="tk-com">## Every enemy&#x27;s HP is multiplied by (1 + hp_growth_per_minute * minute)</span>
+<span class="ln">10</span><span class="tk-com">## on top of the entry / event hp_mult.</span>
+<span class="ln">11</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> hp_growth_per_minute := <span class="tk-num">0.12</span>
+<span class="ln">12</span><span class="tk-com">## Elite = this HP multiplier, size and XP on top of the base enemy.</span>
+<span class="ln">13</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> elite_hp_mult := <span class="tk-num">25.0</span>
+<span class="ln">14</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> elite_scale := <span class="tk-num">1.6</span>
+<span class="ln">15</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> elite_xp_mult := <span class="tk-num">10.0</span>
+<span class="ln">16</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> final_minute := <span class="tk-num">30.0</span>
+<span class="ln">17</span><span class="tk-com">## Spawned at final_minute (after every other enemy is removed), then again</span>
+<span class="ln">18</span><span class="tk-com">## every `reaper_interval` seconds.</span>
+<span class="ln">19</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> reaper: EnemyData
+<span class="ln">20</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> reaper_interval := <span class="tk-num">60.0</span>
+<span class="ln">21</span>
+<span class="ln">22</span>
+<span class="ln">23</span><span class="tk-kw">func</span> <span class="tk-fn">hp_scale</span>(minute: <span class="tk-ty">float</span>) -&gt; <span class="tk-ty">float</span>:
+<span class="ln">24</span>    <span class="tk-kw">return</span> <span class="tk-num">1.0</span> + hp_growth_per_minute * minute</code></pre></div><!--/code-->
+<div class="demo" data-demo="wave"></div>
+<p>Data demo di atas disalin dari <code>data/waves/night.tres</code>. Lihat bagaimana dua entry ghoul tumpang tindih di menit 5–6, brute masuk pelan-pelan dari menit 8, dan total laju naik dari 2 menjadi ~45 spawn per detik di akhir malam.</p>
+
+<h3 id="director">SpawnDirector membaca tabel</h3>
+<div class="code" data-src="enemies/spawn_director.gd" data-from="^func tick" data-to="^## Debug: jump the clock"><div class="file"><span><b>enemies/spawn_director.gd</b> · baris 35–70</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">35</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(dt: <span class="tk-ty">float</span>, game: Game) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">36</span>    _minute = game.elapsed / <span class="tk-num">60.0</span>
+<span class="ln">37</span>    <span class="tk-kw">var</span> i := <span class="tk-num">0</span>
+<span class="ln">38</span>    <span class="tk-kw">while</span> i &lt; bosses.<span class="tk-fn">size</span>():
+<span class="ln">39</span>        <span class="tk-kw">if</span> bosses[i].<span class="tk-fn">tick</span>(dt, game):
+<span class="ln">40</span>            i += <span class="tk-num">1</span>
+<span class="ln">41</span>        <span class="tk-kw">else</span>:
+<span class="ln">42</span>            bosses.<span class="tk-fn">remove_at</span>(i)
+<span class="ln">43</span>
+<span class="ln">44</span>    <span class="tk-kw">if</span> final_phase:
+<span class="ln">45</span>        _reaper_t -= dt
+<span class="ln">46</span>        <span class="tk-kw">if</span> _reaper_t &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">47</span>            _reaper_t += table.reaper_interval
+<span class="ln">48</span>            <span class="tk-fn">_spawn_reaper</span>(game)
+<span class="ln">49</span>        <span class="tk-kw">return</span>
+<span class="ln">50</span>    <span class="tk-kw">if</span> _minute &gt;= table.final_minute:
+<span class="ln">51</span>        <span class="tk-fn">_begin_final</span>(game)
+<span class="ln">52</span>        <span class="tk-kw">return</span>
+<span class="ln">53</span>
+<span class="ln">54</span>    <span class="tk-kw">while</span> _next_event &lt; table.events.<span class="tk-fn">size</span>() <span class="tk-kw">and</span> table.events[_next_event].minute &lt;= _minute:
+<span class="ln">55</span>        <span class="tk-fn">_fire_event</span>(table.events[_next_event], game)
+<span class="ln">56</span>        _next_event += <span class="tk-num">1</span>
+<span class="ln">57</span>
+<span class="ln">58</span>    <span class="tk-kw">var</span> hp_base := <span class="tk-fn">hp_scale</span>()
+<span class="ln">59</span>    <span class="tk-kw">for</span> k <span class="tk-kw">in</span> table.entries.<span class="tk-fn">size</span>():
+<span class="ln">60</span>        <span class="tk-kw">var</span> e := table.entries[k]
+<span class="ln">61</span>        <span class="tk-kw">if</span> <span class="tk-kw">not</span> e.<span class="tk-fn">is_active</span>(_minute) <span class="tk-kw">or</span> e.enemies.<span class="tk-fn">is_empty</span>():
+<span class="ln">62</span>            <span class="tk-kw">continue</span>
+<span class="ln">63</span>        _acc[k] += e.<span class="tk-fn">rate_at</span>(_minute) * dt
+<span class="ln">64</span>        <span class="tk-kw">while</span> _acc[k] &gt;= <span class="tk-num">1.0</span>:
+<span class="ln">65</span>            <span class="tk-kw">if</span> game.swarm.count &gt;= e.max_alive:
+<span class="ln">66</span>                _acc[k] = <span class="tk-num">0.0</span>
+<span class="ln">67</span>                <span class="tk-kw">break</span>
+<span class="ln">68</span>            <span class="tk-kw">var</span> n := <span class="tk-fn">randi_range</span>(e.cluster_min, e.cluster_max)
+<span class="ln">69</span>            _acc[k] -= n
+<span class="ln">70</span>            <span class="tk-fn">spawn_cluster</span>(game, e.<span class="tk-fn">pick</span>(), n, <span class="tk-fn">randf</span>() * TAU, hp_base * e.hp_mult)</code></pre></div><!--/code-->
+<p>Event diurutkan menurut menit dan dibaca dengan satu penunjuk <code>_next_event</code>: tidak perlu mencari di seluruh daftar tiap frame. <code>skip_to()</code> (debug <kbd>PgUp</kbd>, <kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd>) memajukan jam dan melompati event yang terlewat, sehingga lompat ke 9:57 tidak menumpahkan sembilan menit event sekaligus.</p>
+<div class="code" data-src="enemies/spawn_director.gd" data-from="^func _fire_event" data-to="^func spawn_boss"><div class="file"><span><b>enemies/spawn_director.gd</b> · baris 107–146</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">107</span><span class="tk-kw">func</span> <span class="tk-fn">_fire_event</span>(ev: WaveEvent, game: Game) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">108</span>    <span class="tk-kw">var</span> center := game.player.pos2
+<span class="ln">109</span>    <span class="tk-kw">var</span> hp_mult := <span class="tk-fn">hp_scale</span>() * ev.hp_mult
+<span class="ln">110</span>    <span class="tk-kw">match</span> ev.kind:
+<span class="ln">111</span>        WaveEvent.Kind.RING:
+<span class="ln">112</span>            <span class="tk-com"># Every member heads for the player&#x27;s position at spawn time: the</span>
+<span class="ln">113</span>            <span class="tk-com"># circle tightens, crosses in the middle, then the survivors expire.</span>
+<span class="ln">114</span>            <span class="tk-kw">var</span> life := ev.enemy.drift_life
+<span class="ln">115</span>            <span class="tk-kw">if</span> life &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">116</span>                life = <span class="tk-num">2.0</span> * ev.radius / ev.enemy.move_speed
+<span class="ln">117</span>            <span class="tk-kw">for</span> k <span class="tk-kw">in</span> ev.count:
+<span class="ln">118</span>                <span class="tk-kw">var</span> a := TAU * k / ev.count
+<span class="ln">119</span>                <span class="tk-kw">var</span> off := <span class="tk-ty">Vector2</span>.<span class="tk-fn">from_angle</span>(a) * ev.radius
+<span class="ln">120</span>                game.swarm.<span class="tk-fn">spawn</span>(ev.enemy, center + off, hp_mult, <span class="tk-num">0</span>, -off / ev.radius, life)
+<span class="ln">121</span>        WaveEvent.Kind.LINE:
+<span class="ln">122</span>            <span class="tk-com"># A column perpendicular to the heading, entering from off screen.</span>
+<span class="ln">123</span>            <span class="tk-kw">var</span> heading := <span class="tk-ty">Vector2</span>.<span class="tk-fn">from_angle</span>(<span class="tk-fn">randf</span>() * TAU)
+<span class="ln">124</span>            <span class="tk-kw">var</span> side := <span class="tk-ty">Vector2</span>(-heading.y, heading.x)
+<span class="ln">125</span>            <span class="tk-kw">var</span> start := center - heading * ev.radius
+<span class="ln">126</span>            <span class="tk-kw">var</span> life := ev.enemy.drift_life
+<span class="ln">127</span>            <span class="tk-kw">if</span> life &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">128</span>                life = <span class="tk-num">2.0</span> * ev.radius / ev.enemy.move_speed
+<span class="ln">129</span>            <span class="tk-kw">var</span> spacing := <span class="tk-num">1.1</span>
+<span class="ln">130</span>            <span class="tk-kw">for</span> k <span class="tk-kw">in</span> ev.count:
+<span class="ln">131</span>                <span class="tk-kw">var</span> lateral := (k - (ev.count - <span class="tk-num">1</span>) * <span class="tk-num">0.5</span>) * spacing
+<span class="ln">132</span>                <span class="tk-kw">var</span> stagger := heading * <span class="tk-fn">randf_range</span>(-<span class="tk-num">0.4</span>, <span class="tk-num">0.4</span>)
+<span class="ln">133</span>                game.swarm.<span class="tk-fn">spawn</span>(ev.enemy, start + side * lateral + stagger, hp_mult, <span class="tk-num">0</span>, heading, life)
+<span class="ln">134</span>        WaveEvent.Kind.BURST:
+<span class="ln">135</span>            <span class="tk-kw">var</span> a := <span class="tk-fn">randf</span>() * TAU
+<span class="ln">136</span>            <span class="tk-kw">for</span> k <span class="tk-kw">in</span> ev.count:
+<span class="ln">137</span>                <span class="tk-kw">var</span> spread := a + <span class="tk-fn">randf_range</span>(-<span class="tk-num">0.35</span>, <span class="tk-num">0.35</span>)
+<span class="ln">138</span>                <span class="tk-kw">var</span> r := ev.radius + <span class="tk-fn">randf_range</span>(<span class="tk-num">0.0</span>, <span class="tk-num">3.0</span>)
+<span class="ln">139</span>                game.swarm.<span class="tk-fn">spawn</span>(ev.enemy, center + <span class="tk-ty">Vector2</span>.<span class="tk-fn">from_angle</span>(spread) * r, hp_mult)
+<span class="ln">140</span>        WaveEvent.Kind.ELITE:
+<span class="ln">141</span>            <span class="tk-kw">for</span> k <span class="tk-kw">in</span> ev.count:
+<span class="ln">142</span>                <span class="tk-kw">var</span> at := center + <span class="tk-ty">Vector2</span>.<span class="tk-fn">from_angle</span>(<span class="tk-fn">randf</span>() * TAU) * spawn_radius
+<span class="ln">143</span>                game.swarm.<span class="tk-fn">spawn</span>(ev.enemy, at, hp_mult * table.elite_hp_mult, EnemySwarm.ELITE,
+<span class="ln">144</span>                    <span class="tk-ty">Vector2</span>.ZERO, <span class="tk-num">0.0</span>, table.elite_scale)
+<span class="ln">145</span>        WaveEvent.Kind.BOSS:
+<span class="ln">146</span>            <span class="tk-fn">spawn_boss</span>(game, ev.enemy <span class="tk-kw">as</span> BossData, hp_mult)</code></pre></div><!--/code-->
+<p>RING menarik semua anggota ke <b>posisi pemain saat spawn</b>, bukan ke pemain yang bergerak. Lingkaran menyempit, bersilangan di tengah, lalu yang selamat lewat dan hilang. Pemain bisa keluar dari lingkaran sebelum menutup; itu yang membuat event terasa berbeda dari gerombolan biasa.</p>
+
+<h2 id="elite">Elite: tint lewat INSTANCE_CUSTOM</h2>
+<p>Elite adalah musuh biasa dengan flag <code>ELITE</code>, skala 1,6, HP ×25, XP ×10, tahan knockback, dan selalu menjatuhkan peti. Visualnya tidak butuh sprite baru. Tanda <code>INSTANCE_CUSTOM.y</code> sudah dipakai untuk arah hadap (±1); besarnya sekarang juga membawa tint: <code>y = facing × (1 + tint)</code>.</p>
+<div class="code" data-src="shaders/sprite_billboard.gdshader" data-from="^void fragment"><div class="file"><span><b>shaders/sprite_billboard.gdshader</b> · baris 51–63</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">51</span><span class="tk-kw">void</span> <span class="tk-fn">fragment</span>() {
+<span class="ln">52</span>    <span class="tk-ty">vec4</span> c = <span class="tk-fn">texture</span>(sheet, v_uv);
+<span class="ln">53</span>    <span class="tk-ty">vec3</span> col = c.rgb;
+<span class="ln">54</span>    <span class="tk-kw">if</span> (v_tint &gt; <span class="tk-num">0.0</span>) {
+<span class="ln">55</span>        <span class="tk-ty">bool</span> is_outline = <span class="tk-fn">distance</span>(c.rgb, outline_color.rgb) &lt; <span class="tk-num">0.004</span>;
+<span class="ln">56</span>        <span class="tk-ty">float</span> pulse = <span class="tk-num">0.8</span> + <span class="tk-num">0.2</span> * <span class="tk-fn">sin</span>(TIME * <span class="tk-num">7.0</span>);
+<span class="ln">57</span>        col = is_outline ? elite_color.rgb * elite_energy * pulse * v_tint
+<span class="ln">58</span>                : <span class="tk-fn">mix</span>(col, col * elite_body.rgb, <span class="tk-num">0.6</span> * v_tint);
+<span class="ln">59</span>    }
+<span class="ln">60</span>    ALBEDO = <span class="tk-fn">mix</span>(col, flash_color.rgb, v_flash);
+<span class="ln">61</span>    ALPHA = c.a;
+<span class="ln">62</span>    ALPHA_SCISSOR_THRESHOLD = <span class="tk-num">0.5</span>;
+<span class="ln">63</span>}</code></pre></div><!--/code-->
+<p>Piksel yang warnanya sama dengan <code>OUTLINE</code> generator sprite (Bab 0) diganti merah dengan energi &gt; 1, sehingga glow WorldEnvironment membuatnya berpendar dan berdenyut. Badan sedikit diberi warna kemerahan. Satu float, efek visual yang langsung terbaca.</p>
+
+<h2 id="boss">Boss: slot biasa + otak terpisah</h2>
+<p>Boss juga satu slot EnemySwarm. Semua senjata mengenainya lewat jalur yang sama, hit flash dan angka damage gratis. Bedanya: <code>behavior = SCRIPTED</code>, artinya swarm menggerakkannya menurut <code>dir[i]</code> sebagai kecepatan, dan yang menulis <code>dir[i]</code> adalah <code>BossBrain</code>, sebuah RefCounted milik SpawnDirector.</p>
+<div class="code" data-src="enemies/boss_data.gd"><div class="file"><span><b>enemies/boss_data.gd</b> · baris 1–31</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> BossData
+<span class="ln"> 2</span><span class="tk-kw">extends</span> EnemyData
+<span class="ln"> 3</span><span class="tk-com">## A boss is an ordinary EnemySwarm slot (weapons hit it like any enemy) with</span>
+<span class="ln"> 4</span><span class="tk-com">## behavior SCRIPTED; a BossBrain owned by SpawnDirector moves it through</span>
+<span class="ln"> 5</span><span class="tk-com">## `pattern`: chase -&gt; telegraph -&gt; attack -&gt; chase -&gt; next attack...</span>
+<span class="ln"> 6</span>
+<span class="ln"> 7</span><span class="tk-kw">enum</span> Attack { DASH, RADIAL, SUMMON }
+<span class="ln"> 8</span>
+<span class="ln"> 9</span><span class="tk-com">## Shown above the HUD health bar.</span>
+<span class="ln">10</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> title := <span class="tk-str">&quot;&quot;</span>
+<span class="ln">11</span><span class="tk-com">## Attack order, looped. Stored as int in .tres.</span>
+<span class="ln">12</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> pattern: <span class="tk-ty">Array</span>[Attack] = [Attack.DASH, Attack.RADIAL, Attack.SUMMON]
+<span class="ln">13</span><span class="tk-com">## Seconds walking at the player between attacks.</span>
+<span class="ln">14</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> chase_time := <span class="tk-num">2.5</span>
+<span class="ln">15</span><span class="tk-com">## Seconds standing still and flashing before each attack.</span>
+<span class="ln">16</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> telegraph_time := <span class="tk-num">0.7</span>
+<span class="ln">17</span>
+<span class="ln">18</span><span class="tk-ann">@export_group</span>(<span class="tk-str">&quot;Dash&quot;</span>)
+<span class="ln">19</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> dash_speed := <span class="tk-num">15.0</span>
+<span class="ln">20</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> dash_time := <span class="tk-num">0.55</span>
+<span class="ln">21</span>
+<span class="ln">22</span><span class="tk-ann">@export_group</span>(<span class="tk-str">&quot;Radial&quot;</span>)
+<span class="ln">23</span><span class="tk-com">## Shots per ring (uses shot_row / shot_speed / shot_damage / shot_size).</span>
+<span class="ln">24</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> radial_count := <span class="tk-num">16</span>
+<span class="ln">25</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> radial_volleys := <span class="tk-num">3</span>
+<span class="ln">26</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> radial_interval := <span class="tk-num">0.35</span>
+<span class="ln">27</span>
+<span class="ln">28</span><span class="tk-ann">@export_group</span>(<span class="tk-str">&quot;Summon&quot;</span>)
+<span class="ln">29</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> summon: EnemyData
+<span class="ln">30</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> summon_count := <span class="tk-num">10</span>
+<span class="ln">31</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> summon_radius := <span class="tk-num">3.0</span></code></pre></div><!--/code-->
+<div class="code" data-src="enemies/boss_brain.gd" data-from="^## Returns false once the boss is gone" data-to="^func _chase"><div class="file"><span><b>enemies/boss_brain.gd</b> · baris 34–92</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">34</span><span class="tk-com">## Returns false once the boss is gone (killed or cleared).</span>
+<span class="ln">35</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(dt: <span class="tk-ty">float</span>, game: Game) -&gt; <span class="tk-ty">bool</span>:
+<span class="ln">36</span>    <span class="tk-kw">var</span> swarm := game.swarm
+<span class="ln">37</span>    <span class="tk-kw">var</span> i := swarm.<span class="tk-fn">slot_of</span>(uid)
+<span class="ln">38</span>    <span class="tk-kw">if</span> i &lt; <span class="tk-num">0</span> <span class="tk-kw">or</span> swarm.hp[i] &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">39</span>        hp = <span class="tk-num">0.0</span>
+<span class="ln">40</span>        <span class="tk-kw">return</span> <span class="tk-kw">false</span>
+<span class="ln">41</span>    hp = swarm.hp[i]
+<span class="ln">42</span>    <span class="tk-kw">var</span> p := swarm.pos[i]
+<span class="ln">43</span>    pos = p
+<span class="ln">44</span>    <span class="tk-kw">var</span> to_player := game.player.pos2 - p
+<span class="ln">45</span>    _t -= dt
+<span class="ln">46</span>    <span class="tk-kw">match</span> state:
+<span class="ln">47</span>        State.CHASE:
+<span class="ln">48</span>            swarm.dir[i] = to_player.<span class="tk-fn">normalized</span>() * data.move_speed
+<span class="ln">49</span>            <span class="tk-kw">if</span> _t &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">50</span>                state = State.TELEGRAPH
+<span class="ln">51</span>                _t = data.telegraph_time
+<span class="ln">52</span>        State.TELEGRAPH:
+<span class="ln">53</span>            swarm.dir[i] = <span class="tk-ty">Vector2</span>.ZERO
+<span class="ln">54</span>            swarm.flash[i] = <span class="tk-num">0.5</span> + <span class="tk-num">0.5</span> * <span class="tk-fn">sin</span>(_t * <span class="tk-num">30.0</span>)
+<span class="ln">55</span>            _dash_dir = to_player.<span class="tk-fn">normalized</span>()
+<span class="ln">56</span>            <span class="tk-kw">if</span> _t &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">57</span>                <span class="tk-fn">_attack</span>(i, game)
+<span class="ln">58</span>        State.DASH:
+<span class="ln">59</span>            swarm.dir[i] = _dash_dir * data.dash_speed
+<span class="ln">60</span>            <span class="tk-kw">if</span> _t &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">61</span>                <span class="tk-fn">_chase</span>()
+<span class="ln">62</span>        State.RADIAL:
+<span class="ln">63</span>            swarm.dir[i] = <span class="tk-ty">Vector2</span>.ZERO
+<span class="ln">64</span>            <span class="tk-kw">if</span> _t &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">65</span>                <span class="tk-fn">_fire_ring</span>(p, game.enemy_shots, _volleys_left)
+<span class="ln">66</span>                _volleys_left -= <span class="tk-num">1</span>
+<span class="ln">67</span>                _t = data.radial_interval
+<span class="ln">68</span>                <span class="tk-kw">if</span> _volleys_left &lt;= <span class="tk-num">0</span>:
+<span class="ln">69</span>                    <span class="tk-fn">_chase</span>()
+<span class="ln">70</span>    <span class="tk-kw">return</span> <span class="tk-kw">true</span>
+<span class="ln">71</span>
+<span class="ln">72</span>
+<span class="ln">73</span><span class="tk-kw">func</span> <span class="tk-fn">_attack</span>(i: <span class="tk-ty">int</span>, game: Game) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">74</span>    <span class="tk-kw">var</span> attack: BossData.Attack = data.pattern[_attack_index % data.pattern.<span class="tk-fn">size</span>()]
+<span class="ln">75</span>    _attack_index += <span class="tk-num">1</span>
+<span class="ln">76</span>    <span class="tk-kw">match</span> attack:
+<span class="ln">77</span>        BossData.Attack.DASH:
+<span class="ln">78</span>            state = State.DASH
+<span class="ln">79</span>            _t = data.dash_time
+<span class="ln">80</span>            game.camera_rig.<span class="tk-fn">add_shake</span>(<span class="tk-num">0.25</span>)
+<span class="ln">81</span>        BossData.Attack.RADIAL:
+<span class="ln">82</span>            state = State.RADIAL
+<span class="ln">83</span>            _volleys_left = data.radial_volleys
+<span class="ln">84</span>            _t = <span class="tk-num">0.0</span>
+<span class="ln">85</span>        BossData.Attack.SUMMON:
+<span class="ln">86</span>            <span class="tk-kw">if</span> data.summon:
+<span class="ln">87</span>                <span class="tk-kw">var</span> p := game.swarm.pos[i]
+<span class="ln">88</span>                <span class="tk-kw">var</span> hp_mult := game.director.<span class="tk-fn">hp_scale</span>()
+<span class="ln">89</span>                <span class="tk-kw">for</span> k <span class="tk-kw">in</span> data.summon_count:
+<span class="ln">90</span>                    <span class="tk-kw">var</span> a := TAU * k / data.summon_count
+<span class="ln">91</span>                    game.swarm.<span class="tk-fn">spawn</span>(data.summon, p + <span class="tk-ty">Vector2</span>.<span class="tk-fn">from_angle</span>(a) * data.summon_radius, hp_mult)
+<span class="ln">92</span>            <span class="tk-fn">_chase</span>()</code></pre></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">slot_of(uid)</b>Brain menyimpan uid, bukan indeks slot, dan mencari slotnya setiap tick. Slot boss bisa berpindah kapan pun musuh lain mati (swap-remove).</li>
+  <li><b class="ln">state machine</b>CHASE → TELEGRAPH (diam, berkedip lewat <code>flash[i]</code>, memberi pemain waktu bereaksi) → serangan berikutnya dari <code>pattern</code> → CHASE. Pola adalah data: Hollow Abbot dan Vesperine memakai kode yang sama dengan urutan dan angka berbeda.</li>
+  <li><b class="ln">latensi</b>Brain di-tick di <code>director.tick</code>, setelah swarm bergerak. Kecepatan yang ditulisnya dipakai swarm di frame berikutnya. Latensi 1 frame itu tidak terasa, dan urutan Game tetap sederhana.</li>
+</ul>
+<p>HUD membaca <code>director.active_boss()</code> untuk menampilkan nama dan bar HP. Musuh besar (34 px) digambar oleh MultiMesh kedua (<code>_large_mm</code>, sheet <code>enemies_large.png</code>) karena satu MultiMesh hanya punya satu tekstur dengan satu ukuran sel.</p>
+
+<figure><img src="assets/img/head_boss.webp" alt="Vesperine, Bride of Thorns dengan bar HP boss di atas layar, dikelilingi senjata evolusi" width="1280" height="720" loading="lazy"><figcaption>HEAD: Vesperine (BossData kedua) dengan bar boss bertema Fase 7. Kode boss-nya sama dengan Hollow Abbot; hanya data yang berbeda.</figcaption></figure>
+
+<h2 id="final">Menit 30: Knellwraith</h2>
+<div class="code" data-src="enemies/spawn_director.gd" data-from="^func _begin_final"><div class="file"><span><b>enemies/spawn_director.gd</b> · baris 168–181</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">168</span><span class="tk-kw">func</span> <span class="tk-fn">_begin_final</span>(game: Game) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">169</span>    final_phase = <span class="tk-kw">true</span>
+<span class="ln">170</span>    bosses.<span class="tk-fn">clear</span>()
+<span class="ln">171</span>    game.swarm.<span class="tk-fn">clear</span>()
+<span class="ln">172</span>    game.enemy_shots.<span class="tk-fn">clear</span>()
+<span class="ln">173</span>    _reaper_t = table.reaper_interval
+<span class="ln">174</span>    <span class="tk-fn">_spawn_reaper</span>(game)
+<span class="ln">175</span>
+<span class="ln">176</span>
+<span class="ln">177</span><span class="tk-kw">func</span> <span class="tk-fn">_spawn_reaper</span>(game: Game) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">178</span>    <span class="tk-kw">if</span> table.reaper == <span class="tk-kw">null</span>:
+<span class="ln">179</span>        <span class="tk-kw">return</span>
+<span class="ln">180</span>    <span class="tk-kw">var</span> at := game.player.pos2 + <span class="tk-ty">Vector2</span>.<span class="tk-fn">from_angle</span>(<span class="tk-fn">randf</span>() * TAU) * spawn_radius
+<span class="ln">181</span>    game.swarm.<span class="tk-fn">spawn</span>(table.reaper, at)</code></pre></div><!--/code-->
+<p>Knellwraith punya HP 1e9 dan damage kontak 99999: tidak bisa dikalahkan, hanya dihindari. Kematian setelah menit 30 ditampilkan sebagai "THE NIGHT IS OVER", bukan "FALLEN" (Fase 7), dan dihitung sebagai malam yang berhasil dilewati (Fase 8).</p>
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li>Menit 1: lingkaran 20 wisp menyempit. Menit 2: 40 kelelawar dari satu sisi. Menit 3: kolom tengkorak menyeberang.</li>
+    <li>Tekan <kbd>E</kbd>: elite dengan outline merah berdenyut muncul; bunuh, ia menjatuhkan peti.</li>
+    <li>Tekan <kbd>1</kbd> (lompat ke 9:57): tiga detik kemudian Hollow Abbot datang, layar bergetar, bar boss muncul. Perhatikan pola: kejar, diam berkedip, lalu dash/ring tembakan/panggil anak buah.</li>
+    <li>Tekan <kbd>3</kbd> (29:57): semua musuh hilang, timer HUD merah, Knellwraith datang.</li>
+  </ul>
+</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>Boss berhenti bergerak setelah musuh lain mati.</b> Brain menyimpan indeks slot. Pakai uid + <code>slot_of()</code>.</li>
+    <li><b>Event di menit target terlewat saat debug lompat.</b> <code>skip_to</code> melompati event dengan <code>minute &lt;</code> target; itu sebabnya debug melompat ke target − 3 detik.</li>
+    <li><b>Menambah perilaku baru di tengah enum</b> merusak semua .tres musuh dan logika <code>b &lt;= RANGED</code>. Tambahkan di akhir (seperti STATIC di Fase 6).</li>
+    <li><b>Spawn berhenti total.</b> Semua entry aktif sudah mencapai <code>max_alive</code>. Itu disengaja (batas performa), tapi cek angkanya kalau terasa sepi.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Tambahkan event BURST 200 kelelawar di menit 0,5 di <code>night.tres</code> lewat Inspector. Mainkan 40 detik pertama.</li>
+    <li>Ubah <code>pattern</code> Hollow Abbot menjadi [RADIAL, RADIAL, DASH] dan <code>radial_count</code> 24.</li>
+    <li>Tantangan: tambah perilaku <code>ORBITER</code> (di akhir enum) yang mengelilingi pemain di radius 6 sambil mendekat pelan. Cukup satu cabang di <code>tick</code> dan satu nilai per tipe.</li>
+  </ol>
+</div>
+<nav class="pager" id="pager" aria-label="Halaman sebelumnya dan berikutnya"></nav>
+</article>
+</main>
+</div>
+<script src="assets/search-index.js?v=f641e385"></script>
+<script src="assets/site.js?v=3fa56380"></script>
+<script src="assets/demos.js?v=4520dcc1"></script>
+<script src="assets/demos-swarm.js?v=36474919"></script>
+<script src="assets/demos-systems.js?v=9a72b9ac"></script>
+</body>
+</html>

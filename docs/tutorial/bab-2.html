@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Bab 2 · XP, Stats dan Level Up</title>
+<meta name="description" content="Fase 2 Knellbound: gem XP dengan magnet, sistem Stats dan StatModifier, kurva XP, antrian level up, pause, dan layar pilihan dengan reroll, skip, banish.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Pixelify+Sans:wght@500;600&display=swap">
+<link rel="stylesheet" href="assets/style.css?v=5213953b">
+<script>try{var t=JSON.parse(localStorage.getItem("kb-theme"));if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="bab-2">
+<header class="topbar">
+<button id="menu-btn" class="icon-btn" type="button" aria-label="Buka daftar bab"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Bab</button>
+<a class="brand" href="index.html">Knellbound <span>dari Nol</span></a>
+<span class="spacer"></span>
+<div class="search-wrap"><input id="search" type="search" placeholder="Cari… (tekan /)" aria-label="Cari di panduan" autocomplete="off"><div id="search-results" hidden></div></div>
+<button id="theme-btn" class="icon-btn" type="button" aria-label="Ganti tema"></button>
+<div class="progress-line"></div>
+</header>
+<div class="layout">
+<nav class="sidebar" id="sidebar" aria-label="Daftar bab"></nav>
+<main>
+<article class="article">
+<span class="eyebrow">Bab 2 · Fase 2 · commit 2bd6ca3</span>
+<h1>XP, Stats dan Level Up</h1>
+<p class="lede">Game jadi game ketika ada pilihan. Musuh mati menjatuhkan gem, gem memberi XP, XP memberi level, dan tiap level pemain memilih satu dari tiga upgrade. Di balik itu ada dua sistem yang dipakai sampai Fase 8: <b>Stats</b> dan <b>pause</b>.</p>
+<div class="goal"><span class="tag">Tujuan</span>Gem biru/hijau/merah/ungu jatuh dari musuh, melompat kecil lalu tersedot ke pemain saat masuk radius magnet. Bar XP penuh → game berhenti, layar "LEVEL UP!" menampilkan 3–4 kartu (senjata atau relik), plus tombol Reroll/Skip/Banish. Bisa dimainkan dengan keyboard, mouse, dan gamepad.</div>
+<div class="shots">
+  <figure><img src="assets/img/p2_gems.webp" alt="Fase 2: gem biru berserakan di sekitar pemain dan gerombolan musuh" width="1280" height="720" loading="lazy"><figcaption>Fase 2: gem XP di sekitar pemain.</figcaption></figure>
+  <figure><img src="assets/img/p2_levelup.webp" alt="Layar level up versi Fase 2 dengan empat kartu dan tombol Reroll, Skip, Banish" width="1280" height="720" loading="lazy"><figcaption>Layar level up Fase 2 (sebelum tema Fase 7).</figcaption></figure>
+</div>
+
+<h2 id="gemfield">GemField: pola yang sama, objek yang berbeda</h2>
+<p>Gem dibuat persis seperti musuh: packed array paralel, swap-with-last, satu MultiMesh, layout buffer 16 float yang sama, shader billboard yang sama. Itu keuntungan pola yang konsisten: kamu sudah tahu 80% kode <code>pickups/gem_field.gd</code> sebelum membacanya.</p>
+<ol class="steps">
+  <li>Di <code>main.tscn</code> tambahkan Node3D <code>GemField</code>, tempel <code>pickups/gem_field.gd</code>, isi <code>sheet</code> = <code>art/sprites/gems.png</code> (baris = tier warna, kolom = frame kilau).</li>
+  <li>Hubungkan sinyal kematian di <code>Game._ready</code>: <code>swarm.enemy_died.connect(_on_enemy_died)</code>, lalu di handler panggil <code>gems.drop(at, data.xp_value)</code>.</li>
+  <li>Di <code>Game._process</code> setelah <code>flush_dead()</code>: <code>var xp := gems.tick(dt, player.pos2, magnet)</code>.</li>
+</ol>
+<div class="callout"><span class="tag">Konsep · signal</span><p>Sinyal adalah cara node memberi tahu "sesuatu terjadi" tanpa tahu siapa yang mendengar. <code>EnemySwarm</code> mendeklarasikan <code>signal enemy_died(position, data, flags)</code> dan memanggil <code>enemy_died.emit(...)</code>. Game yang menyambungkan sinyal itu ke fungsinya. Swarm tidak perlu tahu ada gem, efek, atau peti. Kalau besok kamu menambah sistem statistik, cukup sambungkan satu handler lagi.</p></div>
+<div class="code" data-src="pickups/gem_field.gd" data-from="^func drop" data-to="^func clear"><div class="file"><span><b>pickups/gem_field.gd</b> · baris 78–133</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 78</span><span class="tk-kw">func</span> <span class="tk-fn">drop</span>(at: <span class="tk-ty">Vector2</span>, xp: <span class="tk-ty">float</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln"> 79</span>    <span class="tk-kw">if</span> xp &lt;= <span class="tk-num">0.0</span>:
+<span class="ln"> 80</span>        <span class="tk-kw">return</span>
+<span class="ln"> 81</span>    <span class="tk-kw">if</span> count &gt;= max_gems:
+<span class="ln"> 82</span>        <span class="tk-kw">if</span> _bank &lt; <span class="tk-num">0</span>:
+<span class="ln"> 83</span>            _bank = <span class="tk-fn">randi</span>() % count
+<span class="ln"> 84</span>        value[_bank] += xp
+<span class="ln"> 85</span>        tier[_bank] = <span class="tk-fn">_tier_of</span>(value[_bank])
+<span class="ln"> 86</span>        <span class="tk-kw">return</span>
+<span class="ln"> 87</span>    <span class="tk-kw">var</span> i := count
+<span class="ln"> 88</span>    count += <span class="tk-num">1</span>
+<span class="ln"> 89</span>    pos[i] = at
+<span class="ln"> 90</span>    vel[i] = <span class="tk-ty">Vector2</span>.ZERO
+<span class="ln"> 91</span>    value[i] = xp
+<span class="ln"> 92</span>    tier[i] = <span class="tk-fn">_tier_of</span>(xp)
+<span class="ln"> 93</span>    phase[i] = <span class="tk-fn">randf</span>() * hframes
+<span class="ln"> 94</span>    pulled[i] = <span class="tk-num">0</span>
+<span class="ln"> 95</span>
+<span class="ln"> 96</span>
+<span class="ln"> 97</span><span class="tk-com">## Pull every gem toward the player regardless of distance (vacuum pickup).</span>
+<span class="ln"> 98</span><span class="tk-kw">func</span> <span class="tk-fn">attract_all</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln"> 99</span>    <span class="tk-kw">for</span> i <span class="tk-kw">in</span> count:
+<span class="ln">100</span>        pulled[i] = <span class="tk-num">1</span>
+<span class="ln">101</span>
+<span class="ln">102</span>
+<span class="ln">103</span><span class="tk-com">## Moves gems, collects those touching `target`; returns collected XP.</span>
+<span class="ln">104</span><span class="tk-kw">func</span> <span class="tk-fn">tick</span>(dt: <span class="tk-ty">float</span>, target: <span class="tk-ty">Vector2</span>, magnet: <span class="tk-ty">float</span>) -&gt; <span class="tk-ty">float</span>:
+<span class="ln">105</span>    _time += dt
+<span class="ln">106</span>    <span class="tk-kw">var</span> collected := <span class="tk-num">0.0</span>
+<span class="ln">107</span>    <span class="tk-kw">var</span> m2 := magnet * magnet
+<span class="ln">108</span>    <span class="tk-kw">var</span> c2 := collect_radius * collect_radius
+<span class="ln">109</span>    <span class="tk-kw">var</span> i := <span class="tk-num">0</span>
+<span class="ln">110</span>    <span class="tk-kw">while</span> i &lt; count:
+<span class="ln">111</span>        <span class="tk-kw">var</span> d := target - pos[i]
+<span class="ln">112</span>        <span class="tk-kw">var</span> l2 := d.<span class="tk-fn">length_squared</span>()
+<span class="ln">113</span>        <span class="tk-kw">if</span> pulled[i] == <span class="tk-num">0</span>:
+<span class="ln">114</span>            <span class="tk-kw">if</span> l2 &gt;= m2:
+<span class="ln">115</span>                i += <span class="tk-num">1</span>
+<span class="ln">116</span>                <span class="tk-kw">continue</span>
+<span class="ln">117</span>            pulled[i] = <span class="tk-num">1</span>
+<span class="ln">118</span>            <span class="tk-kw">if</span> l2 &gt; <span class="tk-num">0.0001</span>:
+<span class="ln">119</span>                vel[i] = -d * (pop_speed / <span class="tk-fn">sqrt</span>(l2))
+<span class="ln">120</span>        <span class="tk-kw">if</span> l2 &lt;= c2:
+<span class="ln">121</span>            collected += value[i]
+<span class="ln">122</span>            <span class="tk-fn">_remove_at</span>(i)
+<span class="ln">123</span>            <span class="tk-kw">continue</span>
+<span class="ln">124</span>        <span class="tk-kw">var</span> dist := <span class="tk-fn">sqrt</span>(l2)
+<span class="ln">125</span>        <span class="tk-kw">var</span> v := (vel[i] + d * (pull_accel * dt / dist)).<span class="tk-fn">limit_length</span>(max_pull_speed)
+<span class="ln">126</span>        <span class="tk-kw">if</span> v.<span class="tk-fn">dot</span>(d) &gt; <span class="tk-num">0.0</span> <span class="tk-kw">and</span> v.<span class="tk-fn">length</span>() * dt &gt;= dist:
+<span class="ln">127</span>            collected += value[i]
+<span class="ln">128</span>            <span class="tk-fn">_remove_at</span>(i)
+<span class="ln">129</span>            <span class="tk-kw">continue</span>
+<span class="ln">130</span>        vel[i] = v
+<span class="ln">131</span>        pos[i] += v * dt
+<span class="ln">132</span>        i += <span class="tk-num">1</span>
+<span class="ln">133</span>    <span class="tk-kw">return</span> collected</code></pre></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">drop</b>Di atas <code>max_gems</code> (400), gem baru tidak dibuat; nilainya ditambahkan ke satu gem "bank" acak yang naik tier. Jumlah objek tetap terbatas walau 300 musuh mati per detik, dan pemain tetap mendapat semua XP-nya.</li>
+  <li><b class="ln">tick</b>Gem diam sampai <code>l2 &lt; magnet²</code> (membandingkan kuadrat jarak, tanpa akar). Saat tertangkap ia diberi kecepatan <b>menjauh</b> (<code>-d · pop_speed</code>), lalu tiap frame dipercepat menuju pemain. Hasilnya lompatan kecil yang memuaskan sebelum tersedot.</li>
+  <li><b class="ln">overshoot</b>Kalau langkah frame ini lebih panjang dari jarak tersisa (<code>v.length() * dt &gt;= dist</code>), gem langsung dikoleksi. Tanpa ini gem cepat bisa melewati pemain dan berputar-putar.</li>
+  <li><b class="ln">while</b>Loop memakai <code>while i &lt; count</code> dan <b>tidak</b> menaikkan <code>i</code> setelah menghapus, karena slot <code>i</code> sekarang berisi gem terakhir yang belum diproses.</li>
+</ul>
+<div class="demo" data-demo="gems"></div>
+<p>Di <code>upload()</code>, indeks 7 (origin.y) diisi gelombang sinus kecil: gem mengambang naik turun tanpa satu baris kode animasi pun di sisi CPU selain angka itu.</p>
+
+<h2 id="stats">Stats dan StatModifier</h2>
+<p>Begitu ada upgrade, pertanyaan desainnya: bagaimana "+10% damage" dari relik, "+10 max HP" dari karakter, dan "+15% damage" dari toko digabung tanpa saling menimpa? Jawaban proyek ini: <b>satu rumus untuk semua stat</b>.</p>
+<div class="callout"><span class="tag">Konsep · additive vs multiplicative</span><p><code>nilai = (base + Σflat) × (1 + Σpercent)</code>. Semua persen pada satu stat <b>dijumlah</b> dulu. Dua relik +10% = +20%, bukan 1,1 × 1,1 = +21%. Ini membuat tooltip mudah dihitung pemain dan mencegah stat meledak eksponensial saat ada puluhan sumber bonus. Karakter hanya mengubah <code>base</code>; semua yang lain adalah modifier.</p></div>
+<div class="code" data-src="core/stat_modifier.gd" data-to="^## Card text"><div class="file"><span><b>core/stat_modifier.gd</b> · baris 1–9</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">1</span><span class="tk-kw">class_name</span> StatModifier
+<span class="ln">2</span><span class="tk-kw">extends</span> <span class="tk-ty">Resource</span>
+<span class="ln">3</span><span class="tk-com">## One additive change to a Stats entry. Passives, characters and (phase 8)</span>
+<span class="ln">4</span><span class="tk-com">## shop power-ups are lists of these.</span>
+<span class="ln">5</span>
+<span class="ln">6</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> stat: Stats.Id
+<span class="ln">7</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> flat := <span class="tk-num">0.0</span>
+<span class="ln">8</span><span class="tk-com">## 0.1 = +10%. All percents on a stat are summed before multiplying.</span>
+<span class="ln">9</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> percent := <span class="tk-num">0.0</span></code></pre></div><!--/code-->
+<div class="code" data-src="core/stats.gd" data-from="^var _base" data-to="^## .\+10% damage"><div class="file"><span><b>core/stats.gd</b> · baris 67–106</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 67</span><span class="tk-kw">var</span> _base := <span class="tk-ty">PackedFloat32Array</span>(DEFAULT_BASE)
+<span class="ln"> 68</span><span class="tk-kw">var</span> _flat := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln"> 69</span><span class="tk-kw">var</span> _percent := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln"> 70</span><span class="tk-kw">var</span> _value := <span class="tk-ty">PackedFloat32Array</span>()
+<span class="ln"> 71</span>
+<span class="ln"> 72</span>
+<span class="ln"> 73</span><span class="tk-kw">func</span> <span class="tk-fn">_init</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln"> 74</span>    <span class="tk-kw">var</span> n := DEFAULT_BASE.<span class="tk-fn">size</span>()
+<span class="ln"> 75</span>    _flat.<span class="tk-fn">resize</span>(n)
+<span class="ln"> 76</span>    _percent.<span class="tk-fn">resize</span>(n)
+<span class="ln"> 77</span>    _value.<span class="tk-fn">resize</span>(n)
+<span class="ln"> 78</span>    <span class="tk-kw">for</span> id <span class="tk-kw">in</span> n:
+<span class="ln"> 79</span>        <span class="tk-fn">_recompute</span>(id)
+<span class="ln"> 80</span>
+<span class="ln"> 81</span>
+<span class="ln"> 82</span><span class="tk-kw">func</span> <span class="tk-fn">value</span>(id: Id) -&gt; <span class="tk-ty">float</span>:
+<span class="ln"> 83</span>    <span class="tk-kw">return</span> _value[id]
+<span class="ln"> 84</span>
+<span class="ln"> 85</span>
+<span class="ln"> 86</span><span class="tk-kw">func</span> <span class="tk-fn">int_value</span>(id: Id) -&gt; <span class="tk-ty">int</span>:
+<span class="ln"> 87</span>    <span class="tk-kw">return</span> <span class="tk-ty">int</span>(_value[id])
+<span class="ln"> 88</span>
+<span class="ln"> 89</span>
+<span class="ln"> 90</span><span class="tk-kw">func</span> <span class="tk-fn">set_base</span>(id: Id, v: <span class="tk-ty">float</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln"> 91</span>    _base[id] = v
+<span class="ln"> 92</span>    <span class="tk-fn">_recompute</span>(id)
+<span class="ln"> 93</span>    changed.<span class="tk-fn">emit</span>()
+<span class="ln"> 94</span>
+<span class="ln"> 95</span>
+<span class="ln"> 96</span><span class="tk-com">## Pass `times = -1` to remove a modifier added earlier.</span>
+<span class="ln"> 97</span><span class="tk-kw">func</span> <span class="tk-fn">add_modifier</span>(m: StatModifier, times: <span class="tk-ty">int</span> = <span class="tk-num">1</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln"> 98</span>    _flat[m.stat] += m.flat * times
+<span class="ln"> 99</span>    _percent[m.stat] += m.percent * times
+<span class="ln">100</span>    <span class="tk-fn">_recompute</span>(m.stat)
+<span class="ln">101</span>    changed.<span class="tk-fn">emit</span>()
+<span class="ln">102</span>
+<span class="ln">103</span>
+<span class="ln">104</span><span class="tk-kw">func</span> <span class="tk-fn">_recompute</span>(id: <span class="tk-ty">int</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">105</span>    <span class="tk-kw">var</span> v := (_base[id] + _flat[id]) * (<span class="tk-num">1.0</span> + _percent[id])
+<span class="ln">106</span>    _value[id] = <span class="tk-fn">maxf</span>(v, MIN_COOLDOWN) <span class="tk-kw">if</span> id == Id.COOLDOWN <span class="tk-kw">else</span> <span class="tk-fn">maxf</span>(v, <span class="tk-num">0.0</span>)</code></pre></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">enum</b><code>Stats.Id</code> disimpan sebagai <b>angka</b> di file <code>.tres</code> (<code>stat = 0</code> = MIGHT). Karena itu ada aturan: tambah id baru <b>di akhir</b>, jangan pernah mengurutkan ulang. Menyisipkan di tengah akan diam-diam mengubah arti semua file data.</li>
+  <li><b class="ln">_value</b>Nilai akhir di-cache. <code>value(id)</code> hanya membaca array, jadi senjata boleh memanggilnya tiap frame. Hitung ulang terjadi hanya saat modifier ditambah.</li>
+  <li><b class="ln">times</b><code>add_modifier(m, -1)</code> membatalkan modifier; Fase 8 memakai <code>times = level</code> untuk upgrade toko.</li>
+</ul>
+<div class="demo" data-demo="stats"></div>
+<p>Relik (<code>PassiveData</code>) hanya daftar modifier. Ini isi lengkap <code>data/passives/bloodied_blade.tres</code>:</p>
+<div class="code" data-src="data/passives/bloodied_blade.tres"><div class="file"><span><b>data/passives/bloodied_blade.tres</b> · baris 1–19</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span>[gd_resource type=<span class="tk-str">&quot;Resource&quot;</span> script_class=<span class="tk-str">&quot;PassiveData&quot;</span> format=<span class="tk-num">3</span>]
+<span class="ln"> 2</span>
+<span class="ln"> 3</span>[ext_resource type=<span class="tk-str">&quot;Script&quot;</span> path=<span class="tk-str">&quot;res://passives/passive_data.gd&quot;</span> id=<span class="tk-str">&quot;1_script&quot;</span>]
+<span class="ln"> 4</span>[ext_resource type=<span class="tk-str">&quot;Script&quot;</span> path=<span class="tk-str">&quot;res://core/stat_modifier.gd&quot;</span> id=<span class="tk-str">&quot;2_mod&quot;</span>]
+<span class="ln"> 5</span>[ext_resource type=<span class="tk-str">&quot;Texture2D&quot;</span> path=<span class="tk-str">&quot;res://art/icons/bloodied_blade.png&quot;</span> id=<span class="tk-str">&quot;3_icon&quot;</span>]
+<span class="ln"> 6</span>
+<span class="ln"> 7</span>[sub_resource type=<span class="tk-str">&quot;Resource&quot;</span> id=<span class="tk-str">&quot;Resource_mod&quot;</span>]
+<span class="ln"> 8</span>script = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;2_mod&quot;</span>)
+<span class="ln"> 9</span>stat = <span class="tk-num">0</span>
+<span class="ln">10</span>percent = <span class="tk-num">0.1</span>
+<span class="ln">11</span>
+<span class="ln">12</span>[resource]
+<span class="ln">13</span>script = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;1_script&quot;</span>)
+<span class="ln">14</span>id = <span class="tk-ann">&amp;&quot;bloodied_blade&quot;</span>
+<span class="ln">15</span>display_name = <span class="tk-str">&quot;Bloodied Blade&quot;</span>
+<span class="ln">16</span>description = <span class="tk-str">&quot;+10% damage.&quot;</span>
+<span class="ln">17</span>icon = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;3_icon&quot;</span>)
+<span class="ln">18</span>max_level = <span class="tk-num">5</span>
+<span class="ln">19</span>modifiers = <span class="tk-ty">Array</span>[<span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;2_mod&quot;</span>)]([<span class="tk-fn">SubResource</span>(<span class="tk-str">&quot;Resource_mod&quot;</span>)])</code></pre></div><!--/code-->
+<p>Senjata tidak membaca <code>data.damage</code> secara langsung, tapi lewat helper di kelas dasar <code>Weapon</code> yang menggabungkan data senjata dan Stats pemain. Satu tempat untuk rumus berarti semua senjata otomatis ikut relik baru.</p>
+<div class="code" data-src="weapons/weapon.gd" data-ref="2bd6ca3" data-from="^func damage" data-to="^func duration|^func projectile_speed"><div class="file"><span><b>weapons/weapon.gd</b> · baris 17–31 · @2bd6ca3</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">17</span><span class="tk-kw">func</span> <span class="tk-fn">damage</span>() -&gt; <span class="tk-ty">float</span>:
+<span class="ln">18</span>    <span class="tk-kw">return</span> data.damage * (<span class="tk-num">1.0</span> + data.level_damage * (level - <span class="tk-num">1</span>)) * stats.<span class="tk-fn">value</span>(Stats.Id.MIGHT)
+<span class="ln">19</span>
+<span class="ln">20</span>
+<span class="ln">21</span><span class="tk-kw">func</span> <span class="tk-fn">area</span>() -&gt; <span class="tk-ty">float</span>:
+<span class="ln">22</span>    <span class="tk-kw">return</span> data.area * (<span class="tk-num">1.0</span> + data.level_area * (level - <span class="tk-num">1</span>)) * stats.<span class="tk-fn">value</span>(Stats.Id.AREA)
+<span class="ln">23</span>
+<span class="ln">24</span>
+<span class="ln">25</span><span class="tk-kw">func</span> <span class="tk-fn">cooldown</span>() -&gt; <span class="tk-ty">float</span>:
+<span class="ln">26</span>    <span class="tk-kw">var</span> lv := <span class="tk-fn">maxf</span>(<span class="tk-num">0.2</span>, <span class="tk-num">1.0</span> - data.level_cooldown * (level - <span class="tk-num">1</span>))
+<span class="ln">27</span>    <span class="tk-kw">return</span> data.cooldown * lv * stats.<span class="tk-fn">value</span>(Stats.Id.COOLDOWN)
+<span class="ln">28</span>
+<span class="ln">29</span>
+<span class="ln">30</span><span class="tk-kw">func</span> <span class="tk-fn">amount</span>() -&gt; <span class="tk-ty">int</span>:
+<span class="ln">31</span>    <span class="tk-kw">return</span> data.amount + stats.<span class="tk-fn">int_value</span>(Stats.Id.AMOUNT)</code></pre></div><!--/code-->
+
+<h2 id="leveling">Kurva XP</h2>
+<div class="code" data-src="core/leveling.gd"><div class="file"><span><b>core/leveling.gd</b> · baris 1–33</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> Leveling
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">RefCounted</span>
+<span class="ln"> 3</span><span class="tk-com">## Player level and XP. Overflow carries into the next level, so one big gem</span>
+<span class="ln"> 4</span><span class="tk-com">## can grant several levels; add() returns how many.</span>
+<span class="ln"> 5</span>
+<span class="ln"> 6</span><span class="tk-kw">var</span> level := <span class="tk-num">1</span>
+<span class="ln"> 7</span><span class="tk-kw">var</span> xp := <span class="tk-num">0.0</span>
+<span class="ln"> 8</span><span class="tk-kw">var</span> xp_to_next := <span class="tk-fn">xp_required</span>(<span class="tk-num">1</span>)
+<span class="ln"> 9</span>
+<span class="ln">10</span>
+<span class="ln">11</span><span class="tk-com">## XP needed to go from `lv` to `lv + 1`: +10 per level until 20,</span>
+<span class="ln">12</span><span class="tk-com">## +13 until 40, +16 after that.</span>
+<span class="ln">13</span><span class="tk-kw">static</span> <span class="tk-kw">func</span> <span class="tk-fn">xp_required</span>(lv: <span class="tk-ty">int</span>) -&gt; <span class="tk-ty">float</span>:
+<span class="ln">14</span>    <span class="tk-kw">if</span> lv &lt; <span class="tk-num">20</span>:
+<span class="ln">15</span>        <span class="tk-kw">return</span> <span class="tk-num">5.0</span> + <span class="tk-num">10.0</span> * (lv - <span class="tk-num">1</span>)
+<span class="ln">16</span>    <span class="tk-kw">if</span> lv &lt; <span class="tk-num">40</span>:
+<span class="ln">17</span>        <span class="tk-kw">return</span> <span class="tk-num">195.0</span> + <span class="tk-num">13.0</span> * (lv - <span class="tk-num">20</span>)
+<span class="ln">18</span>    <span class="tk-kw">return</span> <span class="tk-num">455.0</span> + <span class="tk-num">16.0</span> * (lv - <span class="tk-num">40</span>)
+<span class="ln">19</span>
+<span class="ln">20</span>
+<span class="ln">21</span><span class="tk-kw">func</span> <span class="tk-fn">add</span>(amount: <span class="tk-ty">float</span>) -&gt; <span class="tk-ty">int</span>:
+<span class="ln">22</span>    xp += amount
+<span class="ln">23</span>    <span class="tk-kw">var</span> gained := <span class="tk-num">0</span>
+<span class="ln">24</span>    <span class="tk-kw">while</span> xp &gt;= xp_to_next:
+<span class="ln">25</span>        xp -= xp_to_next
+<span class="ln">26</span>        level += <span class="tk-num">1</span>
+<span class="ln">27</span>        gained += <span class="tk-num">1</span>
+<span class="ln">28</span>        xp_to_next = <span class="tk-fn">xp_required</span>(level)
+<span class="ln">29</span>    <span class="tk-kw">return</span> gained
+<span class="ln">30</span>
+<span class="ln">31</span>
+<span class="ln">32</span><span class="tk-kw">func</span> <span class="tk-fn">progress</span>() -&gt; <span class="tk-ty">float</span>:
+<span class="ln">33</span>    <span class="tk-kw">return</span> xp / xp_to_next</code></pre></div><!--/code-->
+<p>Kurvanya linear bertahap: +10 XP per level sampai level 20, +13 sampai 40, lalu +16. Level awal cepat (level 2 cukup 5 XP, satu-dua gerombolan), lalu melambat. <code>add()</code> memakai <code>while</code>, jadi satu gem bank berisi 2000 XP bisa memberi beberapa level sekaligus, dan fungsi itu <b>mengembalikan jumlahnya</b>. Game menyimpannya di antrian <code>pending_levels</code>.</p>
+<div class="demo" data-demo="xp"></div>
+
+<h2 id="pause">Pause: process_mode</h2>
+<div class="callout"><span class="tag">Konsep · SceneTree.paused dan process_mode</span><p>Saat <code>get_tree().paused = true</code>, Godot berhenti memanggil <code>_process</code>, <code>_input</code>, timer, dan tween pada node dengan <code>process_mode = PAUSABLE</code>. Mode default <code>INHERIT</code> mengikuti induk. Node dengan <code>ALWAYS</code> tetap jalan. Jadi layar level up (CanvasLayer) diberi <code>process_mode = ALWAYS</code> supaya bisa menerima input dan menjalankan tween pop-in walau dunia berhenti.</p></div>
+<p>Game sendiri juga <code>ALWAYS</code> (ia perlu menerima tombol pause untuk <i>unpause</i>), lalu memeriksa sendiri di baris pertama <code>_process</code>:</p>
+<div class="code" data-src="core/game.gd" data-from="^func _ready" data-to="get_tree\(\).paused = false" data-hl="113"><div class="file"><span><b>core/game.gd</b> · baris 111–113</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">111</span><span class="tk-kw">func</span> <span class="tk-fn">_ready</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">112</span>    <span class="tk-com"># Game must receive input while paused (to unpause); _process checks pause itself.</span>
+<span class="hl"><span class="ln">113</span>    process_mode = <span class="tk-ty">Node</span>.PROCESS_MODE_ALWAYS</span></code></pre></div><!--/code-->
+<div class="code" data-src="core/game.gd" data-from="^func _process" data-to="if _hit_stop ><div class="file"><span><b>core/game.gd</b> · baris 147–536</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">147</span><span class="tk-kw">func</span> <span class="tk-fn">_process</span>(delta: <span class="tk-ty">float</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">148</span>    <span class="tk-kw">if</span> <span class="tk-fn">get_tree</span>().paused:
+<span class="ln">149</span>        <span class="tk-kw">return</span>
+<span class="ln">150</span>    <span class="tk-kw">if</span> _hit_stop &gt; <span class="tk-num">0.0</span>:
+<span class="ln">151</span>        _hit_stop -= delta
+<span class="ln">152</span>        camera_rig.<span class="tk-fn">tick</span>(delta, player.global_position)
+<span class="ln">153</span>        <span class="tk-kw">return</span>
+<span class="ln">154</span>    <span class="tk-kw">var</span> dt := <span class="tk-fn">minf</span>(delta, <span class="tk-num">1.0</span> / <span class="tk-num">20.0</span>)
+<span class="ln">155</span>    elapsed += dt
+<span class="ln">156</span>    _boss_crit_cd -= dt
+<span class="ln">157</span>
+<span class="ln">158</span>    player.<span class="tk-fn">tick</span>(dt)
+<span class="ln">159</span>    Audio.listener = player.pos2
+<span class="ln">160</span>    swarm.<span class="tk-fn">tick</span>(dt, player.pos2, enemy_shots)
+<span class="ln">161</span>
+<span class="ln">162</span>    <span class="tk-kw">var</span> contact := swarm.<span class="tk-fn">collide_player</span>(player.pos2, player.radius)
+<span class="ln">163</span>    contact = <span class="tk-fn">maxf</span>(contact, enemy_shots.<span class="tk-fn">tick</span>(dt, player.pos2, player.radius))
+<span class="ln">164</span>    <span class="tk-kw">if</span> contact &gt; <span class="tk-num">0.0</span> <span class="tk-kw">and</span> <span class="tk-kw">not</span> player.is_dead:
+<span class="ln">165</span>        <span class="tk-kw">var</span> before := player.hp
+<span class="ln">166</span>        player.<span class="tk-fn">take_damage</span>(contact)
+<span class="ln">167</span>        <span class="tk-kw">if</span> player.hp &lt; before:
+<span class="ln">168</span>            camera_rig.<span class="tk-fn">add_shake</span>(contact_shake)
+<span class="ln">169</span>            numbers.<span class="tk-fn">add</span>(player.pos2, before - player.hp, DamageNumberField.HURT)
+<span class="ln">170</span>            Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;player_hurt&quot;</span>)
+<span class="ln">171</span>
+<span class="ln">172</span>    <span class="tk-kw">for</span> w <span class="tk-kw">in</span> player.weapons:
+<span class="ln">173</span>        w.<span class="tk-fn">tick</span>(dt, <span class="tk-kw">self</span>)
+<span class="ln">174</span>    projectiles.view_rect = camera_rig.<span class="tk-fn">ground_view_rect</span>()
+<span class="ln">175</span>    projectiles.<span class="tk-fn">tick</span>(dt, swarm, player.pos2)
+<span class="ln">176</span>    <span class="tk-kw">if</span> swarm.boss_crit:
+<span class="ln">177</span>        swarm.boss_crit = <span class="tk-kw">false</span>
+<span class="ln">178</span>        <span class="tk-kw">if</span> _boss_crit_cd &lt;= <span class="tk-num">0.0</span>:
+<span class="ln">179</span>            _boss_crit_cd = boss_crit_cooldown
+<span class="ln">180</span>            <span class="tk-fn">hit_stop</span>(boss_crit_hit_stop)
+<span class="ln">181</span>
+<span class="ln">182</span>    <span class="tk-com"># One hit sound per frame at most (Audio rate-limits it further).</span>
+<span class="ln">183</span>    <span class="tk-kw">if</span> swarm.hits_this_frame &gt; <span class="tk-num">0</span>:
+<span class="ln">184</span>        swarm.hits_this_frame = <span class="tk-num">0</span>
+<span class="ln">185</span>        Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;hit&quot;</span>)
+<span class="ln">186</span>    swarm.<span class="tk-fn">flush_dead</span>()
+<span class="ln">187</span>    <span class="tk-kw">var</span> magnet := player.stats.<span class="tk-fn">value</span>(Stats.Id.MAGNET)
+<span class="ln">188</span>    <span class="tk-kw">var</span> xp := gems.<span class="tk-fn">tick</span>(dt, player.pos2, magnet)
+<span class="ln">189</span>    <span class="tk-kw">if</span> xp &gt; <span class="tk-num">0.0</span>:
+<span class="ln">190</span>        Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;gem&quot;</span>)
+<span class="ln">191</span>        pending_levels += leveling.<span class="tk-fn">add</span>(xp * player.stats.<span class="tk-fn">value</span>(Stats.Id.GROWTH))
+<span class="ln">192</span>    <span class="tk-kw">var</span> got := pickups.<span class="tk-fn">tick</span>(dt, player.pos2, magnet)
+<span class="ln">193</span>    <span class="tk-kw">for</span> k <span class="tk-kw">in</span> got.<span class="tk-fn">size</span>():
+<span class="ln">194</span>        <span class="tk-fn">_on_pickup</span>(pickups.types[got[k]], pickups.collected_at[k])
+<span class="ln">195</span>    director.<span class="tk-fn">tick</span>(dt, <span class="tk-kw">self</span>)
+<span class="ln">196</span>    breakables.<span class="tk-fn">tick</span>(dt, <span class="tk-kw">self</span>)
+<span class="ln">197</span>    numbers.<span class="tk-fn">tick</span>(dt)
+<span class="ln">198</span>    effects.<span class="tk-fn">tick</span>(dt)
+<span class="ln">199</span>    swarm.<span class="tk-fn">upload</span>()
+<span class="ln">200</span>    gems.<span class="tk-fn">upload</span>()
+<span class="ln">201</span>    pickups.<span class="tk-fn">upload</span>()
+<span class="ln">202</span>    projectiles.<span class="tk-fn">upload</span>()
+<span class="ln">203</span>    enemy_shots.<span class="tk-fn">upload</span>()
+<span class="ln">204</span>    effects.<span class="tk-fn">upload</span>()
+<span class="ln">205</span>    numbers.<span class="tk-fn">upload</span>()
+<span class="ln">206</span>
+<span class="ln">207</span>    camera_rig.<span class="tk-fn">tick</span>(dt, player.global_position)
+<span class="ln">208</span>    ground.position = <span class="tk-ty">Vector3</span>(player.pos2.x, <span class="tk-num">0.0</span>, player.pos2.y)
+<span class="ln">209</span>    decor.<span class="tk-fn">tick</span>(player.pos2)
+<span class="ln">210</span>    hud.<span class="tk-fn">refresh</span>(<span class="tk-kw">self</span>)
+<span class="ln">211</span>
+<span class="ln">212</span>    <span class="tk-kw">if</span> is_over:
+<span class="ln">213</span>        <span class="tk-kw">return</span>
+<span class="ln">214</span>    <span class="tk-kw">if</span> pending_levels &gt; <span class="tk-num">0</span>:
+<span class="ln">215</span>        <span class="tk-fn">get_tree</span>().paused = <span class="tk-kw">true</span>
+<span class="ln">216</span>        Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;level_up&quot;</span>)
+<span class="ln">217</span>        <span class="tk-fn">_offer_choices</span>()
+<span class="ln">218</span>    <span class="tk-kw">elif</span> pending_chests &gt; <span class="tk-num">0</span>:
+<span class="ln">219</span>        <span class="tk-fn">get_tree</span>().paused = <span class="tk-kw">true</span>
+<span class="ln">220</span>        <span class="tk-fn">_open_chest</span>()
+<span class="ln">221</span>
+<span class="ln">222</span>
+<span class="ln">223</span><span class="tk-kw">func</span> <span class="tk-fn">_unhandled_input</span>(event: InputEvent) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">224</span>    <span class="tk-kw">if</span> level_up.is_open <span class="tk-kw">or</span> chest_screen.is_open <span class="tk-kw">or</span> SceneFader.busy:
+<span class="ln">225</span>        <span class="tk-kw">return</span>
+<span class="ln">226</span>    <span class="tk-kw">if</span> event.<span class="tk-fn">is_action_pressed</span>(<span class="tk-ann">&amp;&quot;pause&quot;</span>) <span class="tk-kw">and</span> <span class="tk-kw">not</span> is_over <span class="tk-kw">and</span> <span class="tk-kw">not</span> pause_menu.is_open:
+<span class="ln">227</span>        <span class="tk-fn">get_viewport</span>().<span class="tk-fn">set_input_as_handled</span>()
+<span class="ln">228</span>        <span class="tk-fn">_set_paused</span>(<span class="tk-kw">true</span>)
+<span class="ln">229</span>    <span class="tk-kw">elif</span> event.<span class="tk-fn">is_action_pressed</span>(<span class="tk-ann">&amp;&quot;restart&quot;</span>) <span class="tk-kw">and</span> pause_menu.is_open:
+<span class="ln">230</span>        <span class="tk-fn">restart</span>()
+<span class="ln">231</span>    <span class="tk-kw">elif</span> <span class="tk-ty">OS</span>.<span class="tk-fn">is_debug_build</span>() <span class="tk-kw">and</span> event <span class="tk-kw">is</span> InputEventKey <span class="tk-kw">and</span> event.pressed <span class="tk-kw">and</span> <span class="tk-kw">not</span> event.echo:
+<span class="ln">232</span>        <span class="tk-kw">match</span> event.keycode:
+<span class="ln">233</span>            KEY_F1:
+<span class="ln">234</span>                director.<span class="tk-fn">spawn_ring</span>(<span class="tk-kw">self</span>, <span class="tk-num">500</span>)
+<span class="ln">235</span>            KEY_F2:
+<span class="ln">236</span>                swarm.<span class="tk-fn">clear</span>()
+<span class="ln">237</span>            KEY_F3:
+<span class="ln">238</span>                gems.<span class="tk-fn">attract_all</span>()
+<span class="ln">239</span>            KEY_F4:
+<span class="ln">240</span>                pending_levels += leveling.<span class="tk-fn">add</span>(leveling.xp_to_next - leveling.xp)
+<span class="ln">241</span>            KEY_F5:
+<span class="ln">242</span>                <span class="tk-fn">debug_max_weapons</span>()
+<span class="ln">243</span>            KEY_F6:
+<span class="ln">244</span>                pickups.<span class="tk-fn">drop</span>(player.pos2 + player.aim * <span class="tk-num">2.0</span>, chest_pickup)
+<span class="ln">245</span>            KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9:
+<span class="ln">246</span>                <span class="tk-kw">var</span> list := <span class="tk-fn">debug_pickup_types</span>()
+<span class="ln">247</span>                <span class="tk-kw">var</span> n: <span class="tk-ty">int</span> = event.keycode - KEY_4
+<span class="ln">248</span>                <span class="tk-kw">if</span> n &lt; list.<span class="tk-fn">size</span>():
+<span class="ln">249</span>                    pickups.<span class="tk-fn">drop</span>(player.pos2 + player.aim * <span class="tk-num">2.0</span>, list[n])
+<span class="ln">250</span>            KEY_B:
+<span class="ln">251</span>                <span class="tk-fn">debug_breakables</span>()
+<span class="ln">252</span>            KEY_F7:
+<span class="ln">253</span>                <span class="tk-fn">debug_evolution_passives</span>()
+<span class="ln">254</span>            KEY_PAGEUP:
+<span class="ln">255</span>                director.<span class="tk-fn">skip_to</span>(<span class="tk-kw">self</span>, elapsed + <span class="tk-num">60.0</span>)
+<span class="ln">256</span>            KEY_1:
+<span class="ln">257</span>                director.<span class="tk-fn">skip_to</span>(<span class="tk-kw">self</span>, <span class="tk-num">10.0</span> * <span class="tk-num">60.0</span> - <span class="tk-num">3.0</span>)
+<span class="ln">258</span>            KEY_2:
+<span class="ln">259</span>                director.<span class="tk-fn">skip_to</span>(<span class="tk-kw">self</span>, <span class="tk-num">20.0</span> * <span class="tk-num">60.0</span> - <span class="tk-num">3.0</span>)
+<span class="ln">260</span>            KEY_3:
+<span class="ln">261</span>                director.<span class="tk-fn">skip_to</span>(<span class="tk-kw">self</span>, director.table.final_minute * <span class="tk-num">60.0</span> - <span class="tk-num">3.0</span>)
+<span class="ln">262</span>            KEY_E:
+<span class="ln">263</span>                director.<span class="tk-fn">spawn_elite</span>(<span class="tk-kw">self</span>, director.table.entries[<span class="tk-num">0</span>].enemies[<span class="tk-num">0</span>])
+<span class="ln">264</span>            KEY_H:
+<span class="ln">265</span>                hud.<span class="tk-fn">toggle_debug_keys</span>()
+<span class="ln">266</span>
+<span class="ln">267</span>
+<span class="ln">268</span><span class="tk-kw">func</span> <span class="tk-fn">_set_paused</span>(on: <span class="tk-ty">bool</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">269</span>    <span class="tk-fn">get_tree</span>().paused = on
+<span class="ln">270</span>    <span class="tk-kw">if</span> on:
+<span class="ln">271</span>        pause_menu.<span class="tk-fn">open</span>(<span class="tk-kw">self</span>)
+<span class="ln">272</span>    <span class="tk-kw">else</span>:
+<span class="ln">273</span>        pause_menu.<span class="tk-fn">close</span>()
+<span class="ln">274</span>
+<span class="ln">275</span>
+<span class="ln">276</span><span class="tk-kw">func</span> <span class="tk-fn">restart</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">277</span>    <span class="tk-fn">_end_run</span>()
+<span class="ln">278</span>    SceneFader.<span class="tk-fn">reload</span>()
+<span class="ln">279</span>
+<span class="ln">280</span>
+<span class="ln">281</span><span class="tk-kw">func</span> <span class="tk-fn">quit_to_title</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">282</span>    <span class="tk-fn">_end_run</span>()
+<span class="ln">283</span>    SceneFader.<span class="tk-fn">change_scene</span>(<span class="tk-str">&quot;res://scenes/title.tscn&quot;</span>)
+<span class="ln">284</span>
+<span class="ln">285</span>
+<span class="ln">286</span><span class="tk-com">## Banks the run into SaveData exactly once (death, restart or quitting).</span>
+<span class="ln">287</span><span class="tk-kw">func</span> <span class="tk-fn">_end_run</span>() -&gt; RunReward:
+<span class="ln">288</span>    <span class="tk-kw">if</span> run_reward == <span class="tk-kw">null</span>:
+<span class="ln">289</span>        run_reward = SaveData.<span class="tk-fn">bank_run</span>(coins, elapsed, kills, director.final_phase)
+<span class="ln">290</span>    <span class="tk-kw">return</span> run_reward
+<span class="ln">291</span>
+<span class="ln">292</span>
+<span class="ln">293</span><span class="tk-kw">func</span> <span class="tk-fn">_apply_settings</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">294</span>    camera_rig.shake_enabled = Settings.screen_shake
+<span class="ln">295</span>    numbers.enabled = Settings.damage_numbers
+<span class="ln">296</span>
+<span class="ln">297</span>
+<span class="ln">298</span><span class="tk-com">## Debug: the pickups keys 4..9 drop (every type except the chest, F6).</span>
+<span class="ln">299</span><span class="tk-kw">func</span> <span class="tk-fn">debug_pickup_types</span>() -&gt; <span class="tk-ty">Array</span>[PickupData]:
+<span class="ln">300</span>    <span class="tk-kw">var</span> <span class="tk-kw">out</span>: <span class="tk-ty">Array</span>[PickupData] = []
+<span class="ln">301</span>    <span class="tk-kw">for</span> t <span class="tk-kw">in</span> pickups.types:
+<span class="ln">302</span>        <span class="tk-kw">if</span> t != chest_pickup:
+<span class="ln">303</span>            <span class="tk-kw">out</span>.<span class="tk-fn">append</span>(t)
+<span class="ln">304</span>    <span class="tk-kw">return</span> <span class="tk-kw">out</span>
+<span class="ln">305</span>
+<span class="ln">306</span>
+<span class="ln">307</span><span class="tk-com">## Debug: one of each breakable on a small arc ahead of the player.</span>
+<span class="ln">308</span><span class="tk-kw">func</span> <span class="tk-fn">debug_breakables</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">309</span>    <span class="tk-kw">var</span> n := breakables.types.<span class="tk-fn">size</span>()
+<span class="ln">310</span>    <span class="tk-kw">for</span> k <span class="tk-kw">in</span> n:
+<span class="ln">311</span>        <span class="tk-kw">var</span> a := player.aim.<span class="tk-fn">angle</span>() + (k - (n - <span class="tk-num">1</span>) * <span class="tk-num">0.5</span>) * <span class="tk-num">0.45</span>
+<span class="ln">312</span>        breakables.<span class="tk-fn">spawn</span>(<span class="tk-kw">self</span>, breakables.types[k], player.pos2 + <span class="tk-ty">Vector2</span>.<span class="tk-fn">from_angle</span>(a) * <span class="tk-num">4.0</span>)
+<span class="ln">313</span>
+<span class="ln">314</span>
+<span class="ln">315</span><span class="tk-com">## Debug: every weapon in the pool (while slots last) at max level.</span>
+<span class="ln">316</span><span class="tk-kw">func</span> <span class="tk-fn">debug_max_weapons</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">317</span>    <span class="tk-kw">for</span> data <span class="tk-kw">in</span> upgrade_pool.weapons:
+<span class="ln">318</span>        <span class="tk-kw">if</span> upgrade_pool.<span class="tk-fn">owns_line</span>(player, data) <span class="tk-kw">and</span> player.<span class="tk-fn">weapon_for</span>(data) == <span class="tk-kw">null</span>:
+<span class="ln">319</span>            <span class="tk-kw">continue</span>  <span class="tk-com"># already evolved</span>
+<span class="ln">320</span>        <span class="tk-kw">var</span> w := player.<span class="tk-fn">weapon_for</span>(data)
+<span class="ln">321</span>        <span class="tk-kw">if</span> w == <span class="tk-kw">null</span>:
+<span class="ln">322</span>            <span class="tk-kw">if</span> player.weapons.<span class="tk-fn">size</span>() &gt;= Player.MAX_WEAPONS:
+<span class="ln">323</span>                <span class="tk-kw">continue</span>
+<span class="ln">324</span>            w = player.<span class="tk-fn">add_weapon</span>(data)
+<span class="ln">325</span>        w.level = data.max_level
+<span class="ln">326</span>
+<span class="ln">327</span>
+<span class="ln">328</span><span class="tk-com">## Debug: the passive each evolution needs, for weapons the player holds</span>
+<span class="ln">329</span><span class="tk-com">## (while passive slots last).</span>
+<span class="ln">330</span><span class="tk-kw">func</span> <span class="tk-fn">debug_evolution_passives</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">331</span>    <span class="tk-kw">for</span> evo <span class="tk-kw">in</span> upgrade_pool.evolutions:
+<span class="ln">332</span>        <span class="tk-kw">if</span> player.<span class="tk-fn">weapon_for</span>(evo.base) == <span class="tk-kw">null</span> <span class="tk-kw">or</span> player.passives.<span class="tk-fn">has</span>(evo.passive):
+<span class="ln">333</span>            <span class="tk-kw">continue</span>
+<span class="ln">334</span>        <span class="tk-kw">if</span> player.passives.<span class="tk-fn">size</span>() &gt;= Player.MAX_PASSIVES:
+<span class="ln">335</span>            <span class="tk-kw">return</span>
+<span class="ln">336</span>        player.<span class="tk-fn">add_passive</span>(evo.passive)
+<span class="ln">337</span>
+<span class="ln">338</span>
+<span class="ln">339</span><span class="tk-com">## Level the current screen is for: with several queued, the oldest first.</span>
+<span class="ln">340</span><span class="tk-kw">func</span> <span class="tk-fn">level_being_chosen</span>() -&gt; <span class="tk-ty">int</span>:
+<span class="ln">341</span>    <span class="tk-kw">return</span> leveling.level - pending_levels + <span class="tk-num">1</span>
+<span class="ln">342</span>
+<span class="ln">343</span>
+<span class="ln">344</span><span class="tk-kw">func</span> <span class="tk-fn">_offer_choices</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">345</span>    <span class="tk-kw">var</span> n := <span class="tk-num">3</span>
+<span class="ln">346</span>    <span class="tk-kw">if</span> <span class="tk-fn">randf</span>() &lt; extra_choice_chance * player.stats.<span class="tk-fn">value</span>(Stats.Id.LUCK):
+<span class="ln">347</span>        n = <span class="tk-num">4</span>
+<span class="ln">348</span>    <span class="tk-kw">var</span> offers := upgrade_pool.<span class="tk-fn">roll</span>(player, banished, n)
+<span class="ln">349</span>    level_up.<span class="tk-fn">present</span>(offers, <span class="tk-fn">level_being_chosen</span>(), rerolls_left, skips_left, banishes_left)
+<span class="ln">350</span>
+<span class="ln">351</span>
+<span class="ln">352</span><span class="tk-kw">func</span> <span class="tk-fn">_finish_level</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">353</span>    pending_levels -= <span class="tk-num">1</span>
+<span class="ln">354</span>    <span class="tk-kw">if</span> pending_levels &gt; <span class="tk-num">0</span>:
+<span class="ln">355</span>        <span class="tk-fn">_offer_choices</span>()
+<span class="ln">356</span>    <span class="tk-kw">else</span>:
+<span class="ln">357</span>        level_up.<span class="tk-fn">close</span>()
+<span class="ln">358</span>        <span class="tk-fn">get_tree</span>().paused = <span class="tk-kw">false</span>
+<span class="ln">359</span>
+<span class="ln">360</span>
+<span class="ln">361</span><span class="tk-kw">func</span> <span class="tk-fn">_on_offer_picked</span>(offer: UpgradeOffer) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">362</span>    offer.<span class="tk-fn">apply</span>(player)
+<span class="ln">363</span>    <span class="tk-fn">_finish_level</span>()
+<span class="ln">364</span>
+<span class="ln">365</span>
+<span class="ln">366</span><span class="tk-kw">func</span> <span class="tk-fn">_on_reroll</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">367</span>    <span class="tk-kw">if</span> rerolls_left &gt; <span class="tk-num">0</span>:
+<span class="ln">368</span>        rerolls_left -= <span class="tk-num">1</span>
+<span class="ln">369</span>        <span class="tk-fn">_offer_choices</span>()
+<span class="ln">370</span>
+<span class="ln">371</span>
+<span class="ln">372</span><span class="tk-kw">func</span> <span class="tk-fn">_on_skip</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">373</span>    <span class="tk-kw">if</span> skips_left &gt; <span class="tk-num">0</span>:
+<span class="ln">374</span>        skips_left -= <span class="tk-num">1</span>
+<span class="ln">375</span>        <span class="tk-fn">_finish_level</span>()
+<span class="ln">376</span>
+<span class="ln">377</span>
+<span class="ln">378</span><span class="tk-kw">func</span> <span class="tk-fn">_on_banish</span>(offer: UpgradeOffer) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">379</span>    <span class="tk-kw">if</span> banishes_left &gt; <span class="tk-num">0</span> <span class="tk-kw">and</span> offer.item != <span class="tk-kw">null</span>:
+<span class="ln">380</span>        banishes_left -= <span class="tk-num">1</span>
+<span class="ln">381</span>        banished.<span class="tk-fn">append</span>(offer.item)
+<span class="ln">382</span>        <span class="tk-fn">_offer_choices</span>()
+<span class="ln">383</span>
+<span class="ln">384</span>
+<span class="ln">385</span><span class="tk-kw">func</span> <span class="tk-fn">_on_enemy_died</span>(at: <span class="tk-ty">Vector2</span>, data: EnemyData, flags: <span class="tk-ty">int</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">386</span>    <span class="tk-kw">var</span> luck := player.stats.<span class="tk-fn">value</span>(Stats.Id.LUCK)
+<span class="ln">387</span>    <span class="tk-kw">if</span> flags &amp; EnemySwarm.PROP:
+<span class="ln">388</span>        effects.<span class="tk-fn">spawn</span>(at, data.death_effect, <span class="tk-num">1.3</span>)
+<span class="ln">389</span>        effects.<span class="tk-fn">spawn</span>(at, EffectField.Fx.SMOKE, <span class="tk-num">1.0</span>)
+<span class="ln">390</span>        <span class="tk-kw">var</span> loot := (data <span class="tk-kw">as</span> BreakableData).drops
+<span class="ln">391</span>        <span class="tk-kw">if</span> loot != <span class="tk-kw">null</span>:
+<span class="ln">392</span>            <span class="tk-kw">var</span> item := loot.<span class="tk-fn">roll</span>(luck)
+<span class="ln">393</span>            <span class="tk-kw">if</span> item != <span class="tk-kw">null</span>:
+<span class="ln">394</span>                pickups.<span class="tk-fn">drop</span>(at, item)
+<span class="ln">395</span>        <span class="tk-kw">return</span>
+<span class="ln">396</span>    kills += <span class="tk-num">1</span>
+<span class="ln">397</span>    kills_by_type[data] = kills_by_type.<span class="tk-fn">get</span>(data, <span class="tk-num">0</span>) + <span class="tk-num">1</span>
+<span class="ln">398</span>    Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;kill&quot;</span>, at)
+<span class="ln">399</span>    <span class="tk-kw">var</span> xp := data.xp_value
+<span class="ln">400</span>    <span class="tk-kw">if</span> flags &amp; EnemySwarm.ELITE:
+<span class="ln">401</span>        xp *= director.table.elite_xp_mult
+<span class="ln">402</span>    gems.<span class="tk-fn">drop</span>(at, xp)
+<span class="ln">403</span>    <span class="tk-kw">var</span> fx_scale := data.scale * (<span class="tk-num">2.0</span> <span class="tk-kw">if</span> data.large_sprite <span class="tk-kw">else</span> <span class="tk-num">1.0</span>)
+<span class="ln">404</span>    <span class="tk-kw">if</span> flags &amp; EnemySwarm.BOSS:
+<span class="ln">405</span>        fx_scale *= boss_effect_scale
+<span class="ln">406</span>        effects.<span class="tk-fn">spawn</span>(at, EffectField.Fx.EXPLOSION, <span class="tk-num">5.0</span>, <span class="tk-num">0.6</span>)
+<span class="ln">407</span>        camera_rig.<span class="tk-fn">add_shake</span>(boss_death_shake)
+<span class="ln">408</span>        <span class="tk-fn">hit_stop</span>(boss_death_hit_stop)
+<span class="ln">409</span>    <span class="tk-kw">elif</span> flags &amp; EnemySwarm.ELITE:
+<span class="ln">410</span>        fx_scale *= elite_effect_scale
+<span class="ln">411</span>    effects.<span class="tk-fn">spawn</span>(at, data.death_effect, fx_scale)
+<span class="ln">412</span>    <span class="tk-kw">if</span> flags &amp; (EnemySwarm.ELITE | EnemySwarm.BOSS):
+<span class="ln">413</span>        pickups.<span class="tk-fn">drop</span>(at, chest_pickup)
+<span class="ln">414</span>    <span class="tk-kw">elif</span> chest_every_kills &gt; <span class="tk-num">0</span> <span class="tk-kw">and</span> kills % chest_every_kills == <span class="tk-num">0</span>:
+<span class="ln">415</span>        pickups.<span class="tk-fn">drop</span>(at, chest_pickup)
+<span class="ln">416</span>    <span class="tk-kw">elif</span> enemy_drops != <span class="tk-kw">null</span>:
+<span class="ln">417</span>        <span class="tk-kw">var</span> item := enemy_drops.<span class="tk-fn">roll</span>(luck)
+<span class="ln">418</span>        <span class="tk-kw">if</span> item != <span class="tk-kw">null</span>:
+<span class="ln">419</span>            pickups.<span class="tk-fn">drop</span>(at, item)
+<span class="ln">420</span>
+<span class="ln">421</span>
+<span class="ln">422</span><span class="tk-kw">func</span> <span class="tk-fn">_on_pickup</span>(data: PickupData, at: <span class="tk-ty">Vector2</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">423</span>    effects.<span class="tk-fn">spawn</span>(at, data.collect_effect, <span class="tk-num">1.0</span>, <span class="tk-num">0.35</span>, <span class="tk-num">0.2</span>)
+<span class="ln">424</span>    <span class="tk-kw">match</span> data.effect:
+<span class="ln">425</span>        PickupData.Effect.CHEST:
+<span class="ln">426</span>            pending_chests += <span class="tk-num">1</span>
+<span class="ln">427</span>            Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;pickup&quot;</span>)
+<span class="ln">428</span>        PickupData.Effect.HEAL:
+<span class="ln">429</span>            <span class="tk-kw">var</span> before := player.hp
+<span class="ln">430</span>            player.<span class="tk-fn">heal</span>(player.max_hp * data.amount)
+<span class="ln">431</span>            numbers.<span class="tk-fn">add</span>(player.pos2, player.hp - before, DamageNumberField.HEAL)
+<span class="ln">432</span>            Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;heal&quot;</span>)
+<span class="ln">433</span>        PickupData.Effect.MAGNET:
+<span class="ln">434</span>            gems.<span class="tk-fn">attract_all</span>()
+<span class="ln">435</span>            pickups.<span class="tk-fn">attract_all</span>()
+<span class="ln">436</span>            Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;pickup&quot;</span>)
+<span class="ln">437</span>        PickupData.Effect.BOMB:
+<span class="ln">438</span>            <span class="tk-fn">detonate_bomb</span>(player.pos2, data.amount * director.<span class="tk-fn">hp_scale</span>())
+<span class="ln">439</span>        PickupData.Effect.COIN:
+<span class="ln">440</span>            <span class="tk-fn">add_coins</span>(data.amount)
+<span class="ln">441</span>            Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;coin&quot;</span>)
+<span class="ln">442</span>
+<span class="ln">443</span>
+<span class="ln">444</span><span class="tk-com">## Run coins, scaled by GREED; fractions carry over to the next pickup.</span>
+<span class="ln">445</span><span class="tk-kw">func</span> <span class="tk-fn">add_coins</span>(amount: <span class="tk-ty">float</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">446</span>    _coin_frac += amount * player.stats.<span class="tk-fn">value</span>(Stats.Id.GREED)
+<span class="ln">447</span>    <span class="tk-kw">var</span> whole := <span class="tk-fn">floori</span>(_coin_frac + <span class="tk-num">0.0001</span>)
+<span class="ln">448</span>    coins += whole
+<span class="ln">449</span>    _coin_frac -= whole
+<span class="ln">450</span>
+<span class="ln">451</span>
+<span class="ln">452</span><span class="tk-com">## Blessed bomb: `damage` to every enemy and prop within bomb_radius (bosses</span>
+<span class="ln">453</span><span class="tk-com">## take bomb_boss_fraction of it), clears enemy shots, big blast + shake.</span>
+<span class="ln">454</span><span class="tk-kw">func</span> <span class="tk-fn">detonate_bomb</span>(at: <span class="tk-ty">Vector2</span>, damage: <span class="tk-ty">float</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">455</span>    <span class="tk-kw">for</span> j <span class="tk-kw">in</span> swarm.<span class="tk-fn">query_circle</span>(at, bomb_radius):
+<span class="ln">456</span>        <span class="tk-kw">var</span> d := damage * (bomb_boss_fraction <span class="tk-kw">if</span> swarm.flags[j] &amp; EnemySwarm.BOSS <span class="tk-kw">else</span> <span class="tk-num">1.0</span>)
+<span class="ln">457</span>        <span class="tk-kw">var</span> push := (swarm.pos[j] - at).<span class="tk-fn">normalized</span>() * bomb_knockback
+<span class="ln">458</span>        swarm.<span class="tk-fn">damage_enemy</span>(j, d, push)
+<span class="ln">459</span>    enemy_shots.<span class="tk-fn">clear</span>()
+<span class="ln">460</span>    effects.<span class="tk-fn">spawn</span>(at, EffectField.Fx.EXPLOSION, <span class="tk-num">7.0</span>, <span class="tk-num">0.55</span>)
+<span class="ln">461</span>    <span class="tk-kw">for</span> k <span class="tk-kw">in</span> <span class="tk-num">12</span>:
+<span class="ln">462</span>        <span class="tk-kw">var</span> p := at + <span class="tk-ty">Vector2</span>.<span class="tk-fn">from_angle</span>(<span class="tk-fn">randf</span>() * TAU) * <span class="tk-fn">randf_range</span>(<span class="tk-num">2.0</span>, bomb_radius * <span class="tk-num">0.55</span>)
+<span class="ln">463</span>        effects.<span class="tk-fn">spawn</span>(p, EffectField.Fx.EXPLOSION, <span class="tk-fn">randf_range</span>(<span class="tk-num">2.0</span>, <span class="tk-num">3.5</span>), <span class="tk-fn">randf_range</span>(<span class="tk-num">0.35</span>, <span class="tk-num">0.55</span>))
+<span class="ln">464</span>    camera_rig.<span class="tk-fn">add_shake</span>(bomb_shake)
+<span class="ln">465</span>    <span class="tk-fn">hit_stop</span>(bomb_hit_stop)
+<span class="ln">466</span>    Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;bomb&quot;</span>)
+<span class="ln">467</span>
+<span class="ln">468</span>
+<span class="ln">469</span><span class="tk-com">## Freezes the simulation for `seconds` (rendering and camera shake go on).</span>
+<span class="ln">470</span><span class="tk-kw">func</span> <span class="tk-fn">hit_stop</span>(seconds: <span class="tk-ty">float</span>) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">471</span>    _hit_stop = <span class="tk-fn">maxf</span>(_hit_stop, seconds)
+<span class="ln">472</span>
+<span class="ln">473</span>
+<span class="ln">474</span><span class="tk-com">## Rolls and applies one chest&#x27;s rewards, then shows them.</span>
+<span class="ln">475</span><span class="tk-kw">func</span> <span class="tk-fn">_open_chest</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">476</span>    <span class="tk-kw">var</span> rewards: <span class="tk-ty">Array</span>[UpgradeOffer] = []
+<span class="ln">477</span>    <span class="tk-kw">for</span> k <span class="tk-kw">in</span> <span class="tk-fn">chest_item_count</span>():
+<span class="ln">478</span>        <span class="tk-kw">var</span> offer := upgrade_pool.<span class="tk-fn">chest_reward</span>(player, banished)
+<span class="ln">479</span>        <span class="tk-kw">if</span> offer == <span class="tk-kw">null</span>:
+<span class="ln">480</span>            <span class="tk-kw">break</span>
+<span class="ln">481</span>        offer.<span class="tk-fn">apply</span>(player)
+<span class="ln">482</span>        rewards.<span class="tk-fn">append</span>(offer)
+<span class="ln">483</span>    <span class="tk-kw">if</span> rewards.<span class="tk-fn">is_empty</span>():
+<span class="ln">484</span>        <span class="tk-kw">var</span> heal := UpgradeOffer.<span class="tk-fn">for_heal</span>(upgrade_pool.heal_icon)
+<span class="ln">485</span>        heal.<span class="tk-fn">apply</span>(player)
+<span class="ln">486</span>        rewards.<span class="tk-fn">append</span>(heal)
+<span class="ln">487</span>    hud.<span class="tk-fn">refresh</span>(<span class="tk-kw">self</span>)  <span class="tk-com"># the tree is paused: show the new loadout behind the screen</span>
+<span class="ln">488</span>    Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;chest_open&quot;</span>)
+<span class="ln">489</span>    chest_screen.<span class="tk-fn">present</span>(rewards)
+<span class="ln">490</span>
+<span class="ln">491</span>
+<span class="ln">492</span><span class="tk-kw">func</span> <span class="tk-fn">chest_item_count</span>() -&gt; <span class="tk-ty">int</span>:
+<span class="ln">493</span>    <span class="tk-kw">var</span> luck := player.stats.<span class="tk-fn">value</span>(Stats.Id.LUCK)
+<span class="ln">494</span>    <span class="tk-kw">var</span> r := <span class="tk-fn">randf</span>()
+<span class="ln">495</span>    <span class="tk-kw">if</span> r &lt; chest_five_chance * luck:
+<span class="ln">496</span>        <span class="tk-kw">return</span> <span class="tk-num">5</span>
+<span class="ln">497</span>    <span class="tk-kw">if</span> r &lt; (chest_five_chance + chest_three_chance) * luck:
+<span class="ln">498</span>        <span class="tk-kw">return</span> <span class="tk-num">3</span>
+<span class="ln">499</span>    <span class="tk-kw">return</span> <span class="tk-num">1</span>
+<span class="ln">500</span>
+<span class="ln">501</span>
+<span class="ln">502</span><span class="tk-kw">func</span> <span class="tk-fn">_on_chest_closed</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">503</span>    pending_chests -= <span class="tk-num">1</span>
+<span class="ln">504</span>    <span class="tk-kw">if</span> pending_chests &gt; <span class="tk-num">0</span>:
+<span class="ln">505</span>        <span class="tk-fn">_open_chest</span>()
+<span class="ln">506</span>    <span class="tk-kw">else</span>:
+<span class="ln">507</span>        chest_screen.<span class="tk-fn">close</span>()
+<span class="ln">508</span>        <span class="tk-fn">get_tree</span>().paused = <span class="tk-kw">false</span>
+<span class="ln">509</span>
+<span class="ln">510</span>
+<span class="ln">511</span><span class="tk-kw">func</span> <span class="tk-fn">_on_player_died</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">512</span>    <span class="tk-kw">if</span> revivals_left &gt; <span class="tk-num">0</span>:
+<span class="ln">513</span>        <span class="tk-fn">_revive</span>()
+<span class="ln">514</span>        <span class="tk-kw">return</span>
+<span class="ln">515</span>    is_over = <span class="tk-kw">true</span>
+<span class="ln">516</span>    <span class="tk-fn">get_tree</span>().paused = <span class="tk-kw">true</span>
+<span class="ln">517</span>    <span class="tk-fn">_end_run</span>()
+<span class="ln">518</span>    hud.<span class="tk-fn">refresh</span>(<span class="tk-kw">self</span>)
+<span class="ln">519</span>    Audio.<span class="tk-fn">stop_music</span>(<span class="tk-num">0.6</span>)
+<span class="ln">520</span>    Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;game_over&quot;</span>)
+<span class="ln">521</span>    game_over.<span class="tk-fn">present</span>(<span class="tk-kw">self</span>)
+<span class="ln">522</span>
+<span class="ln">523</span>
+<span class="ln">524</span><span class="tk-com">## Spends a REVIVAL charge: back on your feet, nearby enemies and shots blown away.</span>
+<span class="ln">525</span><span class="tk-kw">func</span> <span class="tk-fn">_revive</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">526</span>    revivals_left -= <span class="tk-num">1</span>
+<span class="ln">527</span>    player.<span class="tk-fn">revive</span>(revive_hp, revive_invuln)
+<span class="ln">528</span>    <span class="tk-kw">for</span> j <span class="tk-kw">in</span> swarm.<span class="tk-fn">query_circle</span>(player.pos2, revive_radius):
+<span class="ln">529</span>        <span class="tk-kw">if</span> <span class="tk-kw">not</span> swarm.flags[j] &amp; (EnemySwarm.BOSS | EnemySwarm.PROP):
+<span class="ln">530</span>            swarm.knock[j] = (swarm.pos[j] - player.pos2).<span class="tk-fn">normalized</span>() * swarm.max_knock
+<span class="ln">531</span>    enemy_shots.<span class="tk-fn">clear</span>()
+<span class="ln">532</span>    effects.<span class="tk-fn">spawn</span>(player.pos2, EffectField.Fx.HEAL, <span class="tk-num">5.0</span>, <span class="tk-num">0.7</span>)
+<span class="ln">533</span>    effects.<span class="tk-fn">spawn</span>(player.pos2, EffectField.Fx.SPARKLE, <span class="tk-num">4.0</span>, <span class="tk-num">0.6</span>)
+<span class="ln">534</span>    camera_rig.<span class="tk-fn">add_shake</span>(bomb_shake * <span class="tk-num">0.6</span>)
+<span class="ln">535</span>    <span class="tk-fn">hit_stop</span>(bomb_hit_stop)
+<span class="ln">536</span>    Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;revive&quot;</span>)</code></pre></div><!--/code-->
+<p>Layar tidak dibuka di tengah frame. Level up dicatat (<code>pending_levels += leveling.add(...)</code>), lalu di <b>akhir</b> frame, setelah HUD diperbarui:</p>
+<div class="code" data-src="core/game.gd" data-from="^\tif is_over:" data-to="^func _unhandled_input"><div class="file"><span><b>core/game.gd</b> · baris 212–220</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">212</span>    <span class="tk-kw">if</span> is_over:
+<span class="ln">213</span>        <span class="tk-kw">return</span>
+<span class="ln">214</span>    <span class="tk-kw">if</span> pending_levels &gt; <span class="tk-num">0</span>:
+<span class="ln">215</span>        <span class="tk-fn">get_tree</span>().paused = <span class="tk-kw">true</span>
+<span class="ln">216</span>        Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;level_up&quot;</span>)
+<span class="ln">217</span>        <span class="tk-fn">_offer_choices</span>()
+<span class="ln">218</span>    <span class="tk-kw">elif</span> pending_chests &gt; <span class="tk-num">0</span>:
+<span class="ln">219</span>        <span class="tk-fn">get_tree</span>().paused = <span class="tk-kw">true</span>
+<span class="ln">220</span>        <span class="tk-fn">_open_chest</span>()</code></pre></div><!--/code-->
+<div class="code" data-src="core/game.gd" data-from="^## Level the current screen is for" data-to="^func _on_reroll"><div class="file"><span><b>core/game.gd</b> · baris 339–363</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">339</span><span class="tk-com">## Level the current screen is for: with several queued, the oldest first.</span>
+<span class="ln">340</span><span class="tk-kw">func</span> <span class="tk-fn">level_being_chosen</span>() -&gt; <span class="tk-ty">int</span>:
+<span class="ln">341</span>    <span class="tk-kw">return</span> leveling.level - pending_levels + <span class="tk-num">1</span>
+<span class="ln">342</span>
+<span class="ln">343</span>
+<span class="ln">344</span><span class="tk-kw">func</span> <span class="tk-fn">_offer_choices</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">345</span>    <span class="tk-kw">var</span> n := <span class="tk-num">3</span>
+<span class="ln">346</span>    <span class="tk-kw">if</span> <span class="tk-fn">randf</span>() &lt; extra_choice_chance * player.stats.<span class="tk-fn">value</span>(Stats.Id.LUCK):
+<span class="ln">347</span>        n = <span class="tk-num">4</span>
+<span class="ln">348</span>    <span class="tk-kw">var</span> offers := upgrade_pool.<span class="tk-fn">roll</span>(player, banished, n)
+<span class="ln">349</span>    level_up.<span class="tk-fn">present</span>(offers, <span class="tk-fn">level_being_chosen</span>(), rerolls_left, skips_left, banishes_left)
+<span class="ln">350</span>
+<span class="ln">351</span>
+<span class="ln">352</span><span class="tk-kw">func</span> <span class="tk-fn">_finish_level</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">353</span>    pending_levels -= <span class="tk-num">1</span>
+<span class="ln">354</span>    <span class="tk-kw">if</span> pending_levels &gt; <span class="tk-num">0</span>:
+<span class="ln">355</span>        <span class="tk-fn">_offer_choices</span>()
+<span class="ln">356</span>    <span class="tk-kw">else</span>:
+<span class="ln">357</span>        level_up.<span class="tk-fn">close</span>()
+<span class="ln">358</span>        <span class="tk-fn">get_tree</span>().paused = <span class="tk-kw">false</span>
+<span class="ln">359</span>
+<span class="ln">360</span>
+<span class="ln">361</span><span class="tk-kw">func</span> <span class="tk-fn">_on_offer_picked</span>(offer: UpgradeOffer) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">362</span>    offer.<span class="tk-fn">apply</span>(player)
+<span class="ln">363</span>    <span class="tk-fn">_finish_level</span>()</code></pre></div><!--/code-->
+<div class="demo" data-demo="pause"></div>
+<p>Kenapa antrian, bukan langsung? Karena satu gem bisa memberi tiga level, dan pemain harus memilih tiga kali. Dengan antrian, setiap pilihan cukup mengurangi satu dan menawarkan lagi; dunia baru jalan setelah antrian habis. Fase 4 menambahkan antrian kedua (<code>pending_chests</code>) dengan pola yang persis sama.</p>
+
+<h2 id="upgrade-offer">UpgradeOffer dan UpgradePool</h2>
+<p>Satu kartu = satu <code>UpgradeOffer</code> (RefCounted, bukan Resource: ia dibuat saat runtime dan dibuang setelah dipilih). Ia tahu jenisnya, item yang di-upgrade, level berikutnya, dan cara menerapkannya.</p>
+<div class="code" data-src="core/upgrade_offer.gd" data-ref="2bd6ca3" data-from="^enum Kind" data-to="^static func for_weapon"><div class="file"><span><b>core/upgrade_offer.gd</b> · baris 6–15 · @2bd6ca3</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 6</span><span class="tk-kw">enum</span> Kind { NEW_WEAPON, WEAPON_LEVEL, NEW_PASSIVE, PASSIVE_LEVEL, HEAL }
+<span class="ln"> 7</span>
+<span class="ln"> 8</span><span class="tk-kw">const</span> HEAL_FRACTION := <span class="tk-num">0.3</span>
+<span class="ln"> 9</span>
+<span class="ln">10</span><span class="tk-kw">var</span> kind: Kind
+<span class="ln">11</span><span class="tk-kw">var</span> item: <span class="tk-ty">Resource</span>
+<span class="ln">12</span><span class="tk-kw">var</span> next_level := <span class="tk-num">1</span>
+<span class="ln">13</span><span class="tk-kw">var</span> title := <span class="tk-str">&quot;&quot;</span>
+<span class="ln">14</span><span class="tk-kw">var</span> description := <span class="tk-str">&quot;&quot;</span>
+<span class="ln">15</span><span class="tk-kw">var</span> icon: <span class="tk-ty">Texture2D</span></code></pre></div><!--/code-->
+<div class="code" data-src="core/upgrade_offer.gd" data-ref="2bd6ca3" data-from="^func apply"><div class="file"><span><b>core/upgrade_offer.gd</b> · baris 54–63 · @2bd6ca3</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">54</span><span class="tk-kw">func</span> <span class="tk-fn">apply</span>(player: Player) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">55</span>    <span class="tk-kw">match</span> kind:
+<span class="ln">56</span>        Kind.NEW_WEAPON:
+<span class="ln">57</span>            player.<span class="tk-fn">add_weapon</span>(item)
+<span class="ln">58</span>        Kind.WEAPON_LEVEL:
+<span class="ln">59</span>            player.<span class="tk-fn">weapon_for</span>(item).level = next_level
+<span class="ln">60</span>        Kind.NEW_PASSIVE, Kind.PASSIVE_LEVEL:
+<span class="ln">61</span>            player.<span class="tk-fn">add_passive</span>(item)
+<span class="ln">62</span>        Kind.HEAL:
+<span class="ln">63</span>            player.<span class="tk-fn">heal</span>(player.max_hp * HEAL_FRACTION)</code></pre></div><!--/code-->
+<p><code>UpgradePool</code> (Resource, <code>data/upgrade_pool.tres</code>) adalah daftar semua senjata dan relik yang bisa muncul. <code>roll()</code> mengumpulkan kandidat: level berikutnya dari item yang dimiliki, plus item baru selama slot (6 senjata, 6 relik) masih kosong, membuang yang di-banish, mengacak, lalu mengambil 3 (atau 4, peluang 10% × LUCK).</p>
+<div class="code" data-src="core/upgrade_pool.gd" data-ref="2bd6ca3" data-from="^func roll"><div class="file"><span><b>core/upgrade_pool.gd</b> · baris 12–35 · @2bd6ca3</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">12</span><span class="tk-kw">func</span> <span class="tk-fn">roll</span>(player: Player, banished: <span class="tk-ty">Array</span>[<span class="tk-ty">Resource</span>], count: <span class="tk-ty">int</span>) -&gt; <span class="tk-ty">Array</span>[UpgradeOffer]:
+<span class="ln">13</span>    <span class="tk-kw">var</span> pool: <span class="tk-ty">Array</span>[UpgradeOffer] = []
+<span class="ln">14</span>    <span class="tk-kw">for</span> w <span class="tk-kw">in</span> player.weapons:
+<span class="ln">15</span>        <span class="tk-kw">if</span> w.level &lt; w.data.max_level <span class="tk-kw">and</span> <span class="tk-kw">not</span> banished.<span class="tk-fn">has</span>(w.data):
+<span class="ln">16</span>            pool.<span class="tk-fn">append</span>(UpgradeOffer.<span class="tk-fn">for_weapon</span>(w.data, w.level))
+<span class="ln">17</span>    <span class="tk-kw">if</span> player.weapons.<span class="tk-fn">size</span>() &lt; Player.MAX_WEAPONS:
+<span class="ln">18</span>        <span class="tk-kw">for</span> data <span class="tk-kw">in</span> weapons:
+<span class="ln">19</span>            <span class="tk-kw">if</span> player.<span class="tk-fn">weapon_for</span>(data) == <span class="tk-kw">null</span> <span class="tk-kw">and</span> <span class="tk-kw">not</span> banished.<span class="tk-fn">has</span>(data):
+<span class="ln">20</span>                pool.<span class="tk-fn">append</span>(UpgradeOffer.<span class="tk-fn">for_weapon</span>(data, <span class="tk-num">0</span>))
+<span class="ln">21</span>
+<span class="ln">22</span>    <span class="tk-kw">for</span> p <span class="tk-kw">in</span> player.passives:
+<span class="ln">23</span>        <span class="tk-kw">var</span> lv: <span class="tk-ty">int</span> = player.passives[p]
+<span class="ln">24</span>        <span class="tk-kw">if</span> lv &lt; p.max_level <span class="tk-kw">and</span> <span class="tk-kw">not</span> banished.<span class="tk-fn">has</span>(p):
+<span class="ln">25</span>            pool.<span class="tk-fn">append</span>(UpgradeOffer.<span class="tk-fn">for_passive</span>(p, lv))
+<span class="ln">26</span>    <span class="tk-kw">if</span> player.passives.<span class="tk-fn">size</span>() &lt; Player.MAX_PASSIVES:
+<span class="ln">27</span>        <span class="tk-kw">for</span> p <span class="tk-kw">in</span> passives:
+<span class="ln">28</span>            <span class="tk-kw">if</span> <span class="tk-kw">not</span> player.passives.<span class="tk-fn">has</span>(p) <span class="tk-kw">and</span> <span class="tk-kw">not</span> banished.<span class="tk-fn">has</span>(p):
+<span class="ln">29</span>                pool.<span class="tk-fn">append</span>(UpgradeOffer.<span class="tk-fn">for_passive</span>(p, <span class="tk-num">0</span>))
+<span class="ln">30</span>
+<span class="ln">31</span>    pool.<span class="tk-fn">shuffle</span>()
+<span class="ln">32</span>    pool.<span class="tk-fn">resize</span>(<span class="tk-fn">mini</span>(count, pool.<span class="tk-fn">size</span>()))
+<span class="ln">33</span>    <span class="tk-kw">if</span> pool.<span class="tk-fn">is_empty</span>():
+<span class="ln">34</span>        pool.<span class="tk-fn">append</span>(UpgradeOffer.<span class="tk-fn">for_heal</span>(heal_icon))
+<span class="ln">35</span>    <span class="tk-kw">return</span> pool</code></pre></div><!--/code-->
+
+<h2 id="view-only">Layar sebagai "view"</h2>
+<p>Aturan yang dipegang sampai Fase 8: <b>layar hanya menampilkan dan memancarkan sinyal</b>. <code>LevelUpScreen</code> tidak tahu sisa reroll, tidak mengubah pemain, tidak meng-unpause. Ia emit <code>picked(offer)</code>, <code>reroll_requested</code>, <code>skip_requested</code>, <code>banish_requested(offer)</code>; Game yang memegang aturannya.</p>
+<div class="code" data-src="core/game.gd" data-from="^func _on_offer_picked" data-to="^func _on_enemy_died"><div class="file"><span><b>core/game.gd</b> · baris 361–382</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">361</span><span class="tk-kw">func</span> <span class="tk-fn">_on_offer_picked</span>(offer: UpgradeOffer) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">362</span>    offer.<span class="tk-fn">apply</span>(player)
+<span class="ln">363</span>    <span class="tk-fn">_finish_level</span>()
+<span class="ln">364</span>
+<span class="ln">365</span>
+<span class="ln">366</span><span class="tk-kw">func</span> <span class="tk-fn">_on_reroll</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">367</span>    <span class="tk-kw">if</span> rerolls_left &gt; <span class="tk-num">0</span>:
+<span class="ln">368</span>        rerolls_left -= <span class="tk-num">1</span>
+<span class="ln">369</span>        <span class="tk-fn">_offer_choices</span>()
+<span class="ln">370</span>
+<span class="ln">371</span>
+<span class="ln">372</span><span class="tk-kw">func</span> <span class="tk-fn">_on_skip</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">373</span>    <span class="tk-kw">if</span> skips_left &gt; <span class="tk-num">0</span>:
+<span class="ln">374</span>        skips_left -= <span class="tk-num">1</span>
+<span class="ln">375</span>        <span class="tk-fn">_finish_level</span>()
+<span class="ln">376</span>
+<span class="ln">377</span>
+<span class="ln">378</span><span class="tk-kw">func</span> <span class="tk-fn">_on_banish</span>(offer: UpgradeOffer) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">379</span>    <span class="tk-kw">if</span> banishes_left &gt; <span class="tk-num">0</span> <span class="tk-kw">and</span> offer.item != <span class="tk-kw">null</span>:
+<span class="ln">380</span>        banishes_left -= <span class="tk-num">1</span>
+<span class="ln">381</span>        banished.<span class="tk-fn">append</span>(offer.item)
+<span class="ln">382</span>        <span class="tk-fn">_offer_choices</span>()</code></pre></div><!--/code-->
+<ol class="steps">
+  <li>Scene baru, root <b>CanvasLayer</b> <code>LevelUpScreen</code> (layer 10), <code>process_mode</code> = Always, tempel <code>ui/level_up_screen.gd</code>. Simpan <code>ui/level_up_screen.tscn</code>.</li>
+  <li>Isi: <code>CenterContainer</code> (anchor Full Rect) → <code>PanelContainer</code> (%Panel) → <code>VBoxContainer</code> berisi Label judul, Label %Subtitle, VBoxContainer %Cards, HBoxContainer berisi tiga Button (%RerollButton, %SkipButton, %BanishButton).</li>
+  <li>Klik kanan node → <span class="menu-path">Access as Unique Name</span> untuk node yang dipakai skrip. Di kode cukup <code>%Panel</code>, tidak perlu path panjang yang rusak saat struktur berubah.</li>
+  <li>Kartu dibuat dari kode di <code>_ready</code> (maksimal 4 Button), lalu diisi ulang tiap <code>present()</code>.</li>
+  <li>Instance layar ini di <code>main.tscn</code>; sambungkan sinyalnya di <code>Game._ready</code>.</li>
+</ol>
+<div class="code" data-src="ui/level_up_screen.gd" data-from="^func _unhandled_input" data-to="^func _on_card_pressed|^func _guarded|^func _toggle"><div class="file"><span><b>ui/level_up_screen.gd</b> · baris 127–140</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">127</span><span class="tk-kw">func</span> <span class="tk-fn">_unhandled_input</span>(event: InputEvent) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">128</span>    <span class="tk-kw">if</span> <span class="tk-kw">not</span> is_open:
+<span class="ln">129</span>        <span class="tk-kw">return</span>
+<span class="ln">130</span>    <span class="tk-kw">if</span> event.<span class="tk-fn">is_action_pressed</span>(<span class="tk-ann">&amp;&quot;ui_cancel&quot;</span>) <span class="tk-kw">and</span> _banish_mode:
+<span class="ln">131</span>        <span class="tk-fn">get_viewport</span>().<span class="tk-fn">set_input_as_handled</span>()
+<span class="ln">132</span>        <span class="tk-fn">_set_banish_mode</span>(<span class="tk-kw">false</span>)
+<span class="ln">133</span>        banish_button.<span class="tk-fn">grab_focus</span>()
+<span class="ln">134</span>        <span class="tk-kw">return</span>
+<span class="ln">135</span>    <span class="tk-kw">if</span> <span class="tk-kw">not</span> (event <span class="tk-kw">is</span> InputEventKey) <span class="tk-kw">or</span> <span class="tk-kw">not</span> event.pressed <span class="tk-kw">or</span> event.echo:
+<span class="ln">136</span>        <span class="tk-kw">return</span>
+<span class="ln">137</span>    <span class="tk-kw">var</span> i: <span class="tk-ty">int</span> = event.keycode - KEY_1
+<span class="ln">138</span>    <span class="tk-kw">if</span> i &gt;= <span class="tk-num">0</span> <span class="tk-kw">and</span> i &lt; _offers.<span class="tk-fn">size</span>():
+<span class="ln">139</span>        <span class="tk-fn">get_viewport</span>().<span class="tk-fn">set_input_as_handled</span>()
+<span class="ln">140</span>        <span class="tk-fn">_on_card_pressed</span>(i)</code></pre></div><!--/code-->
+<p>Detail input yang membuat layar terasa rapi: tombol angka <kbd>1</kbd>–<kbd>4</kbd> memilih kartu langsung; <code>INPUT_GRACE_MS = 300</code> menelan tekanan tombol selama 0,3 detik setelah layar muncul (supaya <kbd>Space</kbd> yang masih ditekan dari gameplay tidak langsung memilih kartu); dan <code>ui_accept</code> diberi Joypad A di Input Map.</p>
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li>Gem muncul di tempat musuh mati, terlihat melompat kecil sebelum tersedot.</li>
+    <li>Bar XP di atas layar terisi; saat penuh, semua musuh berhenti dan layar level up muncul. Tween pop-in tetap berjalan (bukti <code>process_mode = ALWAYS</code>).</li>
+    <li>Pilih Bloodied Blade: angka damage aura naik 10%. Tekan <kbd>F4</kbd> (debug +1 level) beberapa kali dengan cepat: layar muncul berulang sampai antrian habis.</li>
+  </ul>
+</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>Layar level up muncul tapi tidak bisa diklik / tween membeku.</b> <code>process_mode</code> layar masih Inherit. Set ke Always di Inspector.</li>
+    <li><b>Game tidak bisa di-unpause.</b> Node yang membaca tombol pause ikut berhenti. Game harus Always dan memeriksa pause sendiri.</li>
+    <li><b>Relik "tidak berefek".</b> Senjata membaca <code>data.damage</code> langsung, bukan <code>damage()</code>. Cari dengan <span class="menu-path">Search → Find in Files</span> untuk <code>data.damage</code>.</li>
+    <li><b>File relik rusak setelah menambah stat.</b> Id disisipkan di tengah enum; semua <code>stat = n</code> di .tres sekarang menunjuk stat lain.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Buat relik "Iron Tooth" (+0,5 flat ARMOR) hanya dengan file <code>.tres</code> dan menambahkannya ke <code>upgrade_pool.tres</code>.</li>
+    <li>Ubah <code>max_gems</code> GemField jadi 50 lalu bunuh 500 musuh dengan <kbd>F1</kbd>. Perhatikan gem bank berganti warna ke merah/ungu.</li>
+    <li>Ubah kurva di <code>xp_required</code> supaya level 1–5 butuh 3 XP saja. Apa efeknya pada ritme 30 detik pertama?</li>
+  </ol>
+</div>
+<nav class="pager" id="pager" aria-label="Halaman sebelumnya dan berikutnya"></nav>
+</article>
+</main>
+</div>
+<script src="assets/search-index.js?v=f641e385"></script>
+<script src="assets/site.js?v=3fa56380"></script>
+<script src="assets/demos.js?v=4520dcc1"></script>
+<script src="assets/demos-swarm.js?v=36474919"></script>
+<script src="assets/demos-systems.js?v=9a72b9ac"></script>
+</body>
+</html>

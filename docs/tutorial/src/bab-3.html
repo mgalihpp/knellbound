@@ -1,0 +1,94 @@
+<!-- title: Bab 3 · Senjata dan ProjectileField | desc: Fase 3 Knellbound: tabel level per senjata sebagai Resource, ProjectileField dengan packed array, pierce, pantul, orbit, lob, hit memory, dan zona tanah. -->
+<span class="eyebrow">Bab 3 · Fase 3 · commit b84a4fb</span>
+<h1>Senjata dan ProjectileField</h1>
+<p class="lede">Satu senjata menjadi lima: pisau yang dilempar lurus, manik yang mengorbit, vial yang dilempar melengkung dan meninggalkan kolam, salib yang memantul. Semua proyektil dari semua senjata hidup di satu tempat, <code>ProjectileField</code>.</p>
+<div class="goal"><span class="tag">Tujuan</span>Lima senjata dengan 8 level masing-masing, didefinisikan sebagai data. Ratusan proyektil di layar dengan satu MultiMesh. Proyektil bisa menembus (pierce), memantul ke musuh lain, memantul di tepi layar, mengorbit, atau melengkung di udara.</div>
+<figure><img src="assets/img/p3_clip.webp" alt="Rekaman Fase 3: pemain dengan aura, kolam air suci biru, salib memantul, pisau beterbangan di antara musuh" width="640" height="360" loading="lazy"><figcaption>Rekaman asli Fase 3 dengan semua senjata di level maksimal (debug <kbd>F5</kbd>).</figcaption></figure>
+
+<h2 id="weapon-level">Level senjata sebagai data</h2>
+<p>Fase 1 hanya punya <code>max_level</code>. Fase 3 mengganti itu dengan tabel: setiap level adalah Resource kecil <code>WeaponLevel</code> berisi <b>selisih</b> yang ditambahkan.</p>
+<div class="code" data-src="weapons/weapon_level.gd" data-to="^func text"></div><!--/code-->
+<div class="code" data-src="weapons/weapon_data.gd" data-from="^@export_group\(.Levels.\)"></div><!--/code-->
+<p><code>max_level</code> bukan lagi angka yang diisi tangan, tapi <b>diturunkan</b> dari panjang tabel. Tidak mungkin lagi ada senjata yang mengaku 8 level tapi tabelnya hanya 6.</p>
+<p>Di Inspector, <code>levels</code> tampil sebagai array; klik <span class="menu-path">Add Element → New WeaponLevel</span> lalu isi. Hasilnya tersimpan sebagai sub-resource di file yang sama:</p>
+<div class="code" data-src="data/weapons/holy_aura.tres" data-lines="7-21"></div><!--/code-->
+<p>Setter <code>level</code> di <code>Weapon</code> menjumlah semua delta sampai level sekarang, sekali saja saat level berubah. Helper seperti <code>area()</code> lalu menggabungkan tiga sumber: base dari data, jumlah delta level, dan Stats pemain.</p>
+<div class="code" data-src="weapons/weapon.gd" data-from="^var level := 1" data-to="^# Sum of data.levels"></div><!--/code-->
+<div class="code" data-src="weapons/weapon.gd" data-from="^func area\(\)" data-to="^func pierce"></div><!--/code-->
+<div class="callout"><span class="tag">Konsep · setter properti GDScript</span><p><code>var level := 1:</code> diikuti blok <code>set(v):</code> membuat setiap penulisan <code>w.level = 5</code> menjalankan kode. Dipakai di sini supaya cache <code>_damage</code>, <code>_area</code>, dst. tidak pernah basi. Di dalam setter, menulis <code>level = …</code> menyimpan nilai tanpa memanggil setter lagi.</p></div>
+
+<h2 id="projectile-field">ProjectileField</h2>
+<p>Kalau setiap pisau adalah node, Thornstorm (evolusi pisau, Fase 4) yang melempar kipas 5 pisau beberapa kali per detik akan membuat dan menghapus ratusan node per detik. Jadi proyektil memakai pola swarm: packed array paralel + satu MultiMesh, untuk <b>semua</b> senjata sekaligus.</p>
+<div class="code" data-src="weapons/projectile_field.gd" data-from="^## Motion / behaviour flags" data-to="^@export var capacity"></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">flags</b>Perilaku berbeda dikodekan sebagai bit flag dalam satu <code>int</code>, bukan subclass. Salib = <code>BOUNCE_ENEMY | BOUNCE_SCREEN</code>; satu loop menangani semuanya dengan <code>if f &amp; ORBIT</code>.</li>
+  <li><b class="ln">Shot</b>Kelas dalam (<code>class Shot</code>) berisi parameter spawn. Setiap senjata menyimpan <b>satu</b> objek <code>Shot</code> dan mengisi ulang sebelum <code>spawn()</code>. Tidak ada alokasi per proyektil; <code>spawn()</code> menyalin nilainya ke array.</li>
+</ul>
+<p>Contoh pemakaian paling sederhana, pisau Silverthorn:</p>
+<div class="code" data-src="weapons/knives/knives_weapon.gd" data-from="^func _throw"></div><!--/code-->
+
+<h3 id="tick-proyektil">Gerak dan hit</h3>
+<div class="code" data-src="weapons/projectile_field.gd" data-from="^## Move, hit, expire" data-to="^## Returns true when the projectile is spent"></div><!--/code-->
+<div class="code" data-src="weapons/projectile_field.gd" data-from="^func _hit_enemies" data-to="^func _bounce_screen"></div><!--/code-->
+<ul class="notes">
+  <li><b class="ln">hits</b><code>hits</code> = sisa musuh yang boleh dikenai: <code>pierce + 1</code>. Nilai <code>-1</code> = tak terbatas (orbit, salib Radiant). Untuk <code>BOUNCE_ENEMY</code> setiap hit dihitung sebagai satu pantulan.</li>
+  <li><b class="ln">memory</b>Proyektil yang menembus berada di dalam musuh selama beberapa frame. Tanpa ingatan, ia mengenai musuh yang sama setiap frame. Setiap proyektil menyimpan uid 4 musuh terakhir dalam ring buffer (<code>HIT_MEMORY = 4</code>, array datar <code>capacity × 4</code>).</li>
+  <li><b class="ln">uid</b>Kenapa uid dan bukan indeks slot? Karena swap-remove memindahkan musuh antar-slot (Bab 1). Fase 3 menambahkan <code>EnemySwarm.uid</code>: nomor unik yang ikut pindah bersama musuhnya.</li>
+  <li><b class="ln">_retarget</b>Setelah mengenai, salib mencari musuh terdekat yang belum diingat dalam radius 7, lalu membelokkan kecepatannya ke sana dengan laju yang sama.</li>
+</ul>
+<div class="demo" data-demo="projectiles"></div>
+
+<h3 id="screen-angle">Sudut di layar</h3>
+<p>Pisau harus menunjuk ke arah terbangnya. Tapi arah di tanah (x, z) tidak sama dengan arah di layar: kamera miring menyusutkan sumbu Z sebesar <code>sin 50°</code>. Jadi sudut layar dihitung dengan Z yang sudah disusutkan, dan shader proyektil memutar quad di bidang layar sebelum menariknya dengan <code>y_stretch</code>:</p>
+<div class="code" data-src="weapons/projectile_field.gd" data-from="^## Screen-space angle" data-to="^func clear"></div><!--/code-->
+<div class="code" data-src="shaders/projectile.gdshader" data-from="// Rotate in the quad plane first" data-to="MODELVIEW_MATRIX = VIEW_MATRIX"></div><!--/code-->
+<p>Tanda minus pada <code>-v.y</code>: Z positif menghadap kamera (ke bawah layar), sedangkan sudut layar positif berputar berlawanan jarum jam ke atas.</p>
+
+<h2 id="orbit">Orbit: Vesper Beads</h2>
+<p>Manik orbit tidak diintegrasikan dari kecepatan. <code>vel.x</code> dipakai sebagai <b>sudut</b> dan <code>vel.y</code> sebagai <b>kecepatan sudut</b> (rad/s); posisinya dihitung ulang tiap frame dari pusat (pemain). Lingkarannya tidak pernah melenceng walau pemain berlari.</p>
+<div class="code" data-src="weapons/orbit/orbit_weapon.gd" data-from="^func tick"></div><!--/code-->
+<p><code>s.hits = -1</code> (tidak pernah habis karena kena) dan <code>s.rehit = data.hit_interval</code>: memori hit dihapus setiap interval, jadi manik bisa mengenai musuh yang sama di putaran berikutnya.</p>
+<div class="demo" data-demo="orbit"></div>
+
+<h2 id="vial">Lob dan zona tanah: Hallowed Vial</h2>
+<p>Vial adalah dua benda: botol yang terbang (proyektil <code>NO_HIT | ARC</code> di ProjectileField, tingginya mengikuti parabola <code>4·h·t·(1−t)</code> di <code>upload()</code>) dan kolam air suci di tanah. Kolam bukan proyektil: ia diam, besar, dan memberi damage berkala ke semua yang di dalamnya. Jadi senjata vial punya packed array dan MultiMesh-nya sendiri.</p>
+<div class="code" data-src="weapons/vial/vial_weapon.gd" data-from="^extends Weapon" data-to="^func _ready"></div><!--/code-->
+<p>Karena senjata adalah anak pemain, MultiMesh kolam akan ikut bergerak bersama pemain. Supaya kolam tetap di tanah, MultiMeshInstance3D-nya diberi <code>top_level = true</code>: transformnya lepas dari induk. Kolam digambar dengan shader <code>ground_decal.gdshader</code> pada PlaneMesh rebah, bukan billboard.</p>
+<figure><img src="assets/img/p3_weapons.webp" alt="Fase 3: pemain di tengah kolam air suci biru, salib perak memantul, pisau melayang" width="1280" height="720" loading="lazy"><figcaption>Fase 3: kolam air suci (Hallowed Vial), salib memantul (Pilgrim's Cross), pisau (Silverthorn Knives).</figcaption></figure>
+
+<h2 id="bounce-screen">Pantul di tepi layar</h2>
+<p>Salib memantul di tepi layar, bukan di tepi dunia (dunia tak terbatas). Game memberi ProjectileField persegi tanah yang terlihat setiap frame, dihitung dari ukuran kamera ortho:</p>
+<div class="code" data-src="core/camera_rig.gd" data-from="^## Ground rect" data-to="^## amount in 0..1"></div><!--/code-->
+<p>Tinggi yang terlihat di tanah adalah <code>ortho_size / sin(pitch)</code>: layar 13 unit, tapi karena tanah miring, yang terlihat di tanah ≈ 17 unit. Lebar mengikuti rasio jendela.</p>
+
+<h2 id="tambah-senjata">Resep menambah senjata</h2>
+<ol class="steps">
+  <li>Skrip <code>weapons/&lt;nama&gt;/&lt;nama&gt;_weapon.gd</code> yang <code>extends Weapon</code> dan meng-override <code>tick(dt, game)</code>. Baca angka hanya lewat helper (<code>damage()</code>, <code>area()</code>, …).</li>
+  <li>Scene <code>&lt;nama&gt;_weapon.tscn</code>: root Node3D dengan skrip itu (tambahkan visual kalau perlu).</li>
+  <li><code>data/weapons/&lt;nama&gt;.tres</code> (WeaponData): ikon, <code>scene</code>, base stats, dan tabel <code>levels</code>.</li>
+  <li>Masukkan .tres ke <code>weapons</code> di <code>data/upgrade_pool.tres</code>.</li>
+</ol>
+<p>Tidak ada switch-case di Game, tidak ada daftar senjata di kode. <code>Player.add_weapon()</code> meng-instance <code>data.scene</code> dan Game memanggil <code>tick</code> pada setiap senjata.</p>
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li>Tekan <kbd>F5</kbd> (debug): semua senjata di pool masuk ke loadout di level maksimal.</li>
+    <li>Pisau mengarah ke musuh terdekat dan sprite-nya menunjuk ke arah terbang. Salib memantul di tepi layar. Manik mengitari pemain dengan jarak tetap. Vial melengkung lalu meninggalkan kolam yang tetap di tempat saat kamu berjalan.</li>
+    <li>Panel debug menunjukkan jumlah proyektil; ratusan proyektil tidak menurunkan FPS secara berarti.</li>
+  </ul>
+</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>Pisau menembus satu musuh tapi memberi damage 20 kali.</b> Hit memory tidak diisi, atau diisi dengan indeks slot (yang berubah) alih-alih uid.</li>
+    <li><b>Kolam ikut berjalan bersama pemain.</b> Lupa <code>top_level = true</code> pada MultiMeshInstance3D kolam.</li>
+    <li><b>Pisau miring ke arah yang salah saat terbang ke atas/bawah layar.</b> Sudut dihitung dari <code>atan2(v.y, v.x)</code> tanpa <code>-</code> dan tanpa faktor <code>sin(pitch)</code>.</li>
+    <li><b>Proyektil "menghilang" acak.</b> <code>_remove_at</code> lupa menyalin salah satu array (misalnya <code>memory</code>), jadi proyektil yang dipindah membawa data proyektil lain.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Tambahkan level 9 ke Silverthorn Knives yang memberi <code>+2 pierce</code>, cukup lewat Inspector. Kartu level up akan menampilkan "+2 pierce" otomatis dari <code>WeaponLevel.text()</code>.</li>
+    <li>Ubah <code>HIT_MEMORY</code> ke 1 dan pakai Pilgrim's Cross di gerombolan padat. Apa yang terjadi pada salib yang memantul bolak-balik antara dua musuh?</li>
+    <li>Buat senjata baru "Censer Swing" yang setiap 2 detik menembakkan 8 proyektil melingkar (pakai <code>Vector2.from_angle(TAU * k / 8)</code>).</li>
+  </ol>
+</div>

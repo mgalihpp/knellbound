@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Bab 4 · Pasif, Evolusi dan Peti</title>
+<meta name="description" content="Fase 4 Knellbound: 13 relik pasif dengan teks otomatis, resep evolusi senjata sebagai data, varian scene dengan skrip yang sama, peti, dan loadout HUD.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Pixelify+Sans:wght@500;600&display=swap">
+<link rel="stylesheet" href="assets/style.css?v=5213953b">
+<script>try{var t=JSON.parse(localStorage.getItem("kb-theme"));if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="bab-4">
+<header class="topbar">
+<button id="menu-btn" class="icon-btn" type="button" aria-label="Buka daftar bab"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Bab</button>
+<a class="brand" href="index.html">Knellbound <span>dari Nol</span></a>
+<span class="spacer"></span>
+<div class="search-wrap"><input id="search" type="search" placeholder="Cari… (tekan /)" aria-label="Cari di panduan" autocomplete="off"><div id="search-results" hidden></div></div>
+<button id="theme-btn" class="icon-btn" type="button" aria-label="Ganti tema"></button>
+<div class="progress-line"></div>
+</header>
+<div class="layout">
+<nav class="sidebar" id="sidebar" aria-label="Daftar bab"></nav>
+<main>
+<article class="article">
+<span class="eyebrow">Bab 4 · Fase 4 · commit 35887be</span>
+<h1>Pasif, Evolusi dan Peti</h1>
+<p class="lede">Survivors-like hidup dari kombinasi. Fase 4 menambah 7 relik sehingga setiap stat gameplay punya relik, resep evolusi (senjata level maks + relik tertentu = senjata baru), peti yang memberi hadiah, dan baris ikon loadout di HUD.</p>
+<div class="goal"><span class="tag">Tujuan</span>Holy Aura level 8 + Heart Locket → buka peti → Seraph's Halo (aura emas yang menyembuhkan). Begitu juga untuk empat senjata lain. HUD menampilkan 6 slot senjata + 6 slot relik dengan level, MAX, dan bingkai emas untuk evolusi.</div>
+<div class="shots">
+  <figure><img src="assets/img/p4_chest.webp" alt="Layar peti Fase 4: EVOLUTION! Eternal Rosary, Vesper Beads plus Votive Candle" width="1280" height="720" loading="lazy"><figcaption>Layar peti Fase 4 menampilkan evolusi Eternal Rosary.</figcaption></figure>
+  <figure><img src="assets/img/p4_evolved.webp" alt="Fase 4 setelah lima evolusi: aura emas, salib emas, kolam emas, manik garnet, kipas pisau merah" width="1280" height="720" loading="lazy"><figcaption>Kelima evolusi aktif bersamaan; loadout HUD di kiri atas.</figcaption></figure>
+</div>
+
+<h2 id="pasif">13 relik, satu kelas</h2>
+<p>Relik adalah <code>PassiveData</code>: daftar <code>StatModifier</code> yang diterapkan sekali lagi setiap naik level. Ke-13 relik menutupi semua stat gameplay: might, area, cooldown, amount, projectile speed, duration, move speed, max HP, recovery, armor, luck, magnet, crit.</p>
+<div class="code" data-src="passives/passive_data.gd"><div class="file"><span><b>passives/passive_data.gd</b> · baris 1–24</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> PassiveData
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">Resource</span>
+<span class="ln"> 3</span><span class="tk-com">## A passive relic: every level applies `modifiers` once more.</span>
+<span class="ln"> 4</span><span class="tk-com">## Evolution requirements live in EvolutionData (data/evolutions/).</span>
+<span class="ln"> 5</span>
+<span class="ln"> 6</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> id: <span class="tk-ty">StringName</span>
+<span class="ln"> 7</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> display_name := <span class="tk-str">&quot;&quot;</span>
+<span class="ln"> 8</span><span class="tk-com">## Flavour + effect, shown on the card that offers the relic for the first time.</span>
+<span class="ln"> 9</span><span class="tk-com">## Keep it to one line: level-up cards have a fixed height.</span>
+<span class="ln">10</span><span class="tk-ann">@export_multiline</span> <span class="tk-kw">var</span> description := <span class="tk-str">&quot;&quot;</span>
+<span class="ln">11</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> icon: <span class="tk-ty">Texture2D</span>
+<span class="ln">12</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> max_level := <span class="tk-num">5</span>
+<span class="ln">13</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> modifiers: <span class="tk-ty">Array</span>[StatModifier] = []
+<span class="ln">14</span>
+<span class="ln">15</span>
+<span class="ln">16</span><span class="tk-com">## Text for the card offering `next_level`: level 1 = description, later</span>
+<span class="ln">17</span><span class="tk-com">## levels = what one level adds and the total it reaches.</span>
+<span class="ln">18</span><span class="tk-kw">func</span> <span class="tk-fn">level_up_text</span>(next_level: <span class="tk-ty">int</span>) -&gt; <span class="tk-ty">String</span>:
+<span class="ln">19</span>    <span class="tk-kw">if</span> next_level &lt;= <span class="tk-num">1</span>:
+<span class="ln">20</span>        <span class="tk-kw">return</span> description
+<span class="ln">21</span>    <span class="tk-kw">var</span> parts: <span class="tk-ty">PackedStringArray</span> = []
+<span class="ln">22</span>    <span class="tk-kw">for</span> m <span class="tk-kw">in</span> modifiers:
+<span class="ln">23</span>        parts.<span class="tk-fn">append</span>(<span class="tk-str">&quot;%s (total %s)&quot;</span> % [m.<span class="tk-fn">describe</span>(<span class="tk-num">1</span>), m.<span class="tk-fn">describe</span>(next_level, <span class="tk-kw">false</span>)])
+<span class="ln">24</span>    <span class="tk-kw">return</span> <span class="tk-str">&quot;, &quot;</span>.<span class="tk-fn">join</span>(parts)</code></pre></div><!--/code-->
+<p>Teks kartu ditulis manusia hanya untuk level 1 (satu baris, kartu tingginya tetap). Level 2 ke atas dibuat otomatis dari angka modifier, misalnya <i>"+10% damage (total +30%)"</i>. Itu mencegah teks dan angka tidak cocok, masalah klasik saat menyeimbangkan game.</p>
+<div class="code" data-src="core/stats.gd" data-from="^## .+10% damage"><div class="file"><span><b>core/stats.gd</b> · baris 109–122</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">109</span><span class="tk-com">## &quot;+10% damage&quot;, &quot;+1 projectiles&quot;, &quot;+0.2 HP/s recovery&quot; (no label: &quot;+10%&quot;).</span>
+<span class="ln">110</span><span class="tk-kw">static</span> <span class="tk-kw">func</span> <span class="tk-fn">describe</span>(id: <span class="tk-ty">int</span>, flat: <span class="tk-ty">float</span>, percent: <span class="tk-ty">float</span>, with_label: <span class="tk-ty">bool</span> = <span class="tk-kw">true</span>) -&gt; <span class="tk-ty">String</span>:
+<span class="ln">111</span>    <span class="tk-kw">var</span> label: <span class="tk-ty">String</span> = (<span class="tk-str">&quot; &quot;</span> + LABELS[id]) <span class="tk-kw">if</span> with_label <span class="tk-kw">else</span> <span class="tk-str">&quot;&quot;</span>
+<span class="ln">112</span>    <span class="tk-kw">var</span> parts: <span class="tk-ty">PackedStringArray</span> = []
+<span class="ln">113</span>    <span class="tk-kw">if</span> flat != <span class="tk-num">0.0</span>:
+<span class="ln">114</span>        <span class="tk-kw">if</span> FLAT_AS_PERCENT.<span class="tk-fn">has</span>(id):
+<span class="ln">115</span>            parts.<span class="tk-fn">append</span>(<span class="tk-str">&quot;%+d%%%s&quot;</span> % [<span class="tk-fn">roundi</span>(flat * <span class="tk-num">100.0</span>), label])
+<span class="ln">116</span>        <span class="tk-kw">elif</span> <span class="tk-fn">is_equal_approx</span>(flat, <span class="tk-fn">roundf</span>(flat)):
+<span class="ln">117</span>            parts.<span class="tk-fn">append</span>(<span class="tk-str">&quot;%+d%s&quot;</span> % [<span class="tk-fn">roundi</span>(flat), label])
+<span class="ln">118</span>        <span class="tk-kw">else</span>:
+<span class="ln">119</span>            parts.<span class="tk-fn">append</span>(<span class="tk-str">&quot;%+.1f%s&quot;</span> % [flat, label])
+<span class="ln">120</span>    <span class="tk-kw">if</span> percent != <span class="tk-num">0.0</span>:
+<span class="ln">121</span>        parts.<span class="tk-fn">append</span>(<span class="tk-str">&quot;%+d%%%s&quot;</span> % [<span class="tk-fn">roundi</span>(percent * <span class="tk-num">100.0</span>), label])
+<span class="ln">122</span>    <span class="tk-kw">return</span> <span class="tk-str">&quot;, &quot;</span>.<span class="tk-fn">join</span>(parts)</code></pre></div><!--/code-->
+<p>Hunter's Eye memberi dua modifier (crit chance + crit damage); crit dihitung di <code>Weapon.roll_damage()</code> dan bendera <code>last_crit</code> diteruskan ke <code>damage_enemy</code> untuk angka damage kuning di Fase 6.</p>
+
+<h2 id="evolusi">Evolusi sebagai resep data</h2>
+<div class="code" data-src="passives/evolution_data.gd"><div class="file"><span><b>passives/evolution_data.gd</b> · baris 1–17</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span><span class="tk-kw">class_name</span> EvolutionData
+<span class="ln"> 2</span><span class="tk-kw">extends</span> <span class="tk-ty">Resource</span>
+<span class="ln"> 3</span><span class="tk-com">## Recipe: `base` at its max level + `passive` at `passive_level` or higher</span>
+<span class="ln"> 4</span><span class="tk-com">## turns into `result` when a chest is opened. The evolved weapon takes the</span>
+<span class="ln"> 5</span><span class="tk-com">## base weapon&#x27;s slot. Listed in UpgradePool.evolutions.</span>
+<span class="ln"> 6</span>
+<span class="ln"> 7</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> base: WeaponData
+<span class="ln"> 8</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> passive: PassiveData
+<span class="ln"> 9</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> passive_level := <span class="tk-num">1</span>
+<span class="ln">10</span><span class="tk-ann">@export</span> <span class="tk-kw">var</span> result: WeaponData
+<span class="ln">11</span>
+<span class="ln">12</span>
+<span class="ln">13</span><span class="tk-kw">func</span> <span class="tk-fn">is_ready</span>(player: Player) -&gt; <span class="tk-ty">bool</span>:
+<span class="ln">14</span>    <span class="tk-kw">var</span> w := player.<span class="tk-fn">weapon_for</span>(base)
+<span class="ln">15</span>    <span class="tk-kw">return</span> w != <span class="tk-kw">null</span> <span class="tk-kw">and</span> w.level &gt;= base.max_level \
+<span class="ln">16</span>        <span class="tk-kw">and</span> player.passives.<span class="tk-fn">get</span>(passive, <span class="tk-num">0</span>) &gt;= passive_level \
+<span class="ln">17</span>        <span class="tk-kw">and</span> player.<span class="tk-fn">weapon_for</span>(result) == <span class="tk-kw">null</span></code></pre></div><!--/code-->
+<div class="code" data-src="data/evolutions/thornstorm.tres"><div class="file"><span><b>data/evolutions/thornstorm.tres</b> · baris 1–13</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span>[gd_resource type=<span class="tk-str">&quot;Resource&quot;</span> script_class=<span class="tk-str">&quot;EvolutionData&quot;</span> format=<span class="tk-num">3</span>]
+<span class="ln"> 2</span>
+<span class="ln"> 3</span>[ext_resource type=<span class="tk-str">&quot;Script&quot;</span> path=<span class="tk-str">&quot;res://passives/evolution_data.gd&quot;</span> id=<span class="tk-str">&quot;1_script&quot;</span>]
+<span class="ln"> 4</span>[ext_resource type=<span class="tk-str">&quot;Resource&quot;</span> path=<span class="tk-str">&quot;res://data/weapons/silverthorn_knives.tres&quot;</span> id=<span class="tk-str">&quot;2_base&quot;</span>]
+<span class="ln"> 5</span>[ext_resource type=<span class="tk-str">&quot;Resource&quot;</span> path=<span class="tk-str">&quot;res://data/passives/raven_feather.tres&quot;</span> id=<span class="tk-str">&quot;3_passive&quot;</span>]
+<span class="ln"> 6</span>[ext_resource type=<span class="tk-str">&quot;Resource&quot;</span> path=<span class="tk-str">&quot;res://data/weapons/thornstorm.tres&quot;</span> id=<span class="tk-str">&quot;4_result&quot;</span>]
+<span class="ln"> 7</span>
+<span class="ln"> 8</span>[resource]
+<span class="ln"> 9</span>script = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;1_script&quot;</span>)
+<span class="ln">10</span>base = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;2_base&quot;</span>)
+<span class="ln">11</span>passive = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;3_passive&quot;</span>)
+<span class="ln">12</span>passive_level = <span class="tk-num">1</span>
+<span class="ln">13</span>result = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;4_result&quot;</span>)</code></pre></div><!--/code-->
+<p>Yang menarik adalah bagaimana senjata evolusi dibuat tanpa skrip baru. Thornstorm adalah <b>varian scene</b> dari pisau: skrip yang sama, nilai <code>@export</code> berbeda.</p>
+<div class="code" data-src="weapons/knives/thornstorm.tscn"><div class="file"><span><b>weapons/knives/thornstorm.tscn</b> · baris 1–11</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln"> 1</span>[gd_scene format=<span class="tk-num">3</span>]
+<span class="ln"> 2</span>
+<span class="ln"> 3</span>[ext_resource type=<span class="tk-str">&quot;Script&quot;</span> path=<span class="tk-str">&quot;res://weapons/knives/knives_weapon.gd&quot;</span> id=<span class="tk-str">&quot;1_script&quot;</span>]
+<span class="ln"> 4</span>
+<span class="ln"> 5</span>[node name=<span class="tk-str">&quot;Thornstorm&quot;</span> type=<span class="tk-str">&quot;Node3D&quot;</span>]
+<span class="ln"> 6</span>script = <span class="tk-fn">ExtResource</span>(<span class="tk-str">&quot;1_script&quot;</span>)
+<span class="ln"> 7</span>sprite_row = <span class="tk-num">4</span>
+<span class="ln"> 8</span>sprite_scale = <span class="tk-num">1.15</span>
+<span class="ln"> 9</span>burst_interval = <span class="tk-num">0.05</span>
+<span class="ln">10</span>fan = <span class="tk-num">3</span>
+<span class="ln">11</span>fan_degrees = <span class="tk-num">13.0</span></code></pre></div><!--/code-->
+<p><code>fan = 3</code>: setiap lemparan jadi kipas 3 pisau; <code>sprite_row = 4</code>: baris duri merah di sheet proyektil. Kemampuan baru ditambahkan ke skrip dasar sebagai export dengan default "mati" (<code>fan := 1</code>), lalu varian menyalakannya. Daftar lengkapnya: aura <code>heal_per_pulse</code>, knives <code>fan</code>, orbit <code>rings</code>/<code>continuous</code>, vial <code>splash_count</code>/<code>drift_speed</code>, cross <code>endless</code>/<code>burst_count</code>.</p>
+<ol class="steps">
+  <li>Klik kanan <code>weapons/knives/knives_weapon.tscn</code> → <span class="menu-path">New Inherited Scene</span>, atau duplikat file .tscn-nya. Ubah nama root jadi <code>Thornstorm</code>, set export di Inspector, simpan <code>thornstorm.tscn</code>.</li>
+  <li>Buat <code>data/weapons/thornstorm.tres</code> (WeaponData, <code>is_evolution = true</code>, <code>scene</code> = thornstorm.tscn, tanpa <code>levels</code> → <code>max_level = 1</code>). Jangan masukkan ke <code>UpgradePool.weapons</code>: evolusi hanya dari peti.</li>
+  <li>Buat <code>data/evolutions/thornstorm.tres</code> (EvolutionData: base, passive, result) dan masukkan ke <code>UpgradePool.evolutions</code>.</li>
+</ol>
+
+<h3 id="evolve">Mengganti senjata di slot yang sama</h3>
+<div class="code" data-src="player/player.gd" data-from="^## Replaces evo.base" data-to="^func _make_weapon"><div class="file"><span><b>player/player.gd</b> · baris 65–76</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">65</span><span class="tk-com">## Replaces evo.base with evo.result in the same slot (see EvolutionData).</span>
+<span class="ln">66</span><span class="tk-kw">func</span> <span class="tk-fn">evolve</span>(evo: EvolutionData) -&gt; Weapon:
+<span class="ln">67</span>    <span class="tk-kw">var</span> old := <span class="tk-fn">weapon_for</span>(evo.base)
+<span class="ln">68</span>    <span class="tk-kw">if</span> old == <span class="tk-kw">null</span>:
+<span class="ln">69</span>        <span class="tk-kw">return</span> <span class="tk-kw">null</span>
+<span class="ln">70</span>    <span class="tk-kw">var</span> w := <span class="tk-fn">_make_weapon</span>(evo.result)
+<span class="ln">71</span>    w.damage_dealt = old.damage_dealt  <span class="tk-com"># the run summary counts the whole line</span>
+<span class="ln">72</span>    weapons[weapons.<span class="tk-fn">find</span>(old)] = w
+<span class="ln">73</span>    weapons_root.<span class="tk-fn">move_child</span>(w, old.<span class="tk-fn">get_index</span>())
+<span class="ln">74</span>    weapon_replaced.<span class="tk-fn">emit</span>(old, w)
+<span class="ln">75</span>    old.<span class="tk-fn">queue_free</span>()
+<span class="ln">76</span>    <span class="tk-kw">return</span> w</code></pre></div><!--/code-->
+<p>Ada jebakan: proyektil Silverthorn yang masih terbang menyimpan referensi <code>source</code> ke node senjata lama, yang akan di-<code>queue_free</code>. Proyektil itu nanti memanggil <code>source.roll_damage()</code> pada objek yang sudah dibebaskan → crash. Solusinya sinyal <code>weapon_replaced(old, new)</code>, yang Game teruskan ke ProjectileField:</p>
+<div class="code" data-src="weapons/projectile_field.gd" data-from="^## Live projectiles of .old." data-to="^func _remove_at"><div class="file"><span><b>weapons/projectile_field.gd</b> · baris 292–296</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">292</span><span class="tk-com">## Live projectiles of `old` now belong to `new` (weapon evolved, old is freed).</span>
+<span class="ln">293</span><span class="tk-kw">func</span> <span class="tk-fn">replace_source</span>(old: Weapon, new: Weapon) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">294</span>    <span class="tk-kw">for</span> i <span class="tk-kw">in</span> count:
+<span class="ln">295</span>        <span class="tk-kw">if</span> source[i] == old:
+<span class="ln">296</span>            source[i] = new</code></pre></div><!--/code-->
+<p>Di <code>Game._ready</code>: <code>player.weapon_replaced.connect(projectiles.replace_source)</code>. Satu baris, dan referensi menggantung hilang.</p>
+
+<h2 id="peti">Peti</h2>
+<p>Peti adalah pickup di dunia (<code>PickupField</code>, packed array + MultiMesh lagi). Saat diambil, Game menambah <code>pending_chests</code>, dan di akhir frame membuka layar peti dengan pola antrian yang sama seperti level up. Isi peti diundi oleh Game, langsung diterapkan, lalu <b>ditampilkan</b> oleh <code>ChestScreen</code> yang hanya view:</p>
+<div class="code" data-src="core/game.gd" data-from="^## Rolls and applies one chest" data-to="^func _on_player_died"><div class="file"><span><b>core/game.gd</b> · baris 474–508</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">474</span><span class="tk-com">## Rolls and applies one chest&#x27;s rewards, then shows them.</span>
+<span class="ln">475</span><span class="tk-kw">func</span> <span class="tk-fn">_open_chest</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">476</span>    <span class="tk-kw">var</span> rewards: <span class="tk-ty">Array</span>[UpgradeOffer] = []
+<span class="ln">477</span>    <span class="tk-kw">for</span> k <span class="tk-kw">in</span> <span class="tk-fn">chest_item_count</span>():
+<span class="ln">478</span>        <span class="tk-kw">var</span> offer := upgrade_pool.<span class="tk-fn">chest_reward</span>(player, banished)
+<span class="ln">479</span>        <span class="tk-kw">if</span> offer == <span class="tk-kw">null</span>:
+<span class="ln">480</span>            <span class="tk-kw">break</span>
+<span class="ln">481</span>        offer.<span class="tk-fn">apply</span>(player)
+<span class="ln">482</span>        rewards.<span class="tk-fn">append</span>(offer)
+<span class="ln">483</span>    <span class="tk-kw">if</span> rewards.<span class="tk-fn">is_empty</span>():
+<span class="ln">484</span>        <span class="tk-kw">var</span> heal := UpgradeOffer.<span class="tk-fn">for_heal</span>(upgrade_pool.heal_icon)
+<span class="ln">485</span>        heal.<span class="tk-fn">apply</span>(player)
+<span class="ln">486</span>        rewards.<span class="tk-fn">append</span>(heal)
+<span class="ln">487</span>    hud.<span class="tk-fn">refresh</span>(<span class="tk-kw">self</span>)  <span class="tk-com"># the tree is paused: show the new loadout behind the screen</span>
+<span class="ln">488</span>    Audio.<span class="tk-fn">play_sfx</span>(<span class="tk-ann">&amp;&quot;chest_open&quot;</span>)
+<span class="ln">489</span>    chest_screen.<span class="tk-fn">present</span>(rewards)
+<span class="ln">490</span>
+<span class="ln">491</span>
+<span class="ln">492</span><span class="tk-kw">func</span> <span class="tk-fn">chest_item_count</span>() -&gt; <span class="tk-ty">int</span>:
+<span class="ln">493</span>    <span class="tk-kw">var</span> luck := player.stats.<span class="tk-fn">value</span>(Stats.Id.LUCK)
+<span class="ln">494</span>    <span class="tk-kw">var</span> r := <span class="tk-fn">randf</span>()
+<span class="ln">495</span>    <span class="tk-kw">if</span> r &lt; chest_five_chance * luck:
+<span class="ln">496</span>        <span class="tk-kw">return</span> <span class="tk-num">5</span>
+<span class="ln">497</span>    <span class="tk-kw">if</span> r &lt; (chest_five_chance + chest_three_chance) * luck:
+<span class="ln">498</span>        <span class="tk-kw">return</span> <span class="tk-num">3</span>
+<span class="ln">499</span>    <span class="tk-kw">return</span> <span class="tk-num">1</span>
+<span class="ln">500</span>
+<span class="ln">501</span>
+<span class="ln">502</span><span class="tk-kw">func</span> <span class="tk-fn">_on_chest_closed</span>() -&gt; <span class="tk-kw">void</span>:
+<span class="ln">503</span>    pending_chests -= <span class="tk-num">1</span>
+<span class="ln">504</span>    <span class="tk-kw">if</span> pending_chests &gt; <span class="tk-num">0</span>:
+<span class="ln">505</span>        <span class="tk-fn">_open_chest</span>()
+<span class="ln">506</span>    <span class="tk-kw">else</span>:
+<span class="ln">507</span>        chest_screen.<span class="tk-fn">close</span>()
+<span class="ln">508</span>        <span class="tk-fn">get_tree</span>().paused = <span class="tk-kw">false</span></code></pre></div><!--/code-->
+<div class="code" data-src="core/upgrade_pool.gd" data-from="^## One chest item" data-to="^## Next level of every owned"><div class="file"><span><b>core/upgrade_pool.gd</b> · baris 32–41</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">32</span><span class="tk-com">## One chest item, or null when nothing can be evolved or levelled.</span>
+<span class="ln">33</span><span class="tk-com">## The caller applies it before asking for the next one.</span>
+<span class="ln">34</span><span class="tk-kw">func</span> <span class="tk-fn">chest_reward</span>(player: Player, banished: <span class="tk-ty">Array</span>[<span class="tk-ty">Resource</span>]) -&gt; UpgradeOffer:
+<span class="ln">35</span>    <span class="tk-kw">var</span> evos := evolutions.<span class="tk-fn">duplicate</span>()
+<span class="ln">36</span>    evos.<span class="tk-fn">shuffle</span>()
+<span class="ln">37</span>    <span class="tk-kw">for</span> evo: EvolutionData <span class="tk-kw">in</span> evos:
+<span class="ln">38</span>        <span class="tk-kw">if</span> evo.<span class="tk-fn">is_ready</span>(player):
+<span class="ln">39</span>            <span class="tk-kw">return</span> UpgradeOffer.<span class="tk-fn">for_evolution</span>(evo)
+<span class="ln">40</span>    <span class="tk-kw">var</span> pool := <span class="tk-fn">owned_upgrades</span>(player, banished)
+<span class="ln">41</span>    <span class="tk-kw">return</span> <span class="tk-kw">null</span> <span class="tk-kw">if</span> pool.<span class="tk-fn">is_empty</span>() <span class="tk-kw">else</span> pool.<span class="tk-fn">pick_random</span>()</code></pre></div><!--/code-->
+<p>Urutan prioritas: evolusi yang siap lebih dulu (diacak supaya tidak selalu evolusi yang sama), kalau tidak ada maka level acak dari item yang dimiliki, kalau semua maks maka "Hearty Meal" (heal 30%). <code>UpgradePool.owns_line()</code> mencegah Silverthorn ditawarkan lagi setelah pemain memegang Thornstorm.</p>
+
+<h2 id="loadout">Loadout di HUD</h2>
+<p>12 slot ikon dibuat dari kode di <code>Hud._ready</code>, lalu diisi tiap frame dari <code>player.weapons</code> dan <code>player.passives</code>. Membuat node UI dari kode berguna saat jumlahnya ditentukan konstanta (<code>Player.MAX_WEAPONS</code>), bukan oleh desainer.</p>
+<div class="code" data-src="ui/hud.gd" data-from="^func _refresh_loadout" data-to="^func _refresh_arrows"><div class="file"><span><b>ui/hud.gd</b> · baris 126–144</span><button class="copy-btn" type="button">Salin</button></div><pre><code><span class="ln">126</span><span class="tk-kw">func</span> <span class="tk-fn">_refresh_loadout</span>(p: Player) -&gt; <span class="tk-kw">void</span>:
+<span class="ln">127</span>    <span class="tk-kw">for</span> i <span class="tk-kw">in</span> _weapon_slots.<span class="tk-fn">size</span>():
+<span class="ln">128</span>        <span class="tk-kw">if</span> i &lt; p.weapons.<span class="tk-fn">size</span>():
+<span class="ln">129</span>            <span class="tk-kw">var</span> w := p.weapons[i]
+<span class="ln">130</span>            <span class="tk-fn">_set_slot</span>(_weapon_slots[i], w.data.icon, w.level, w.data.max_level, w.data.is_evolution)
+<span class="ln">131</span>        <span class="tk-kw">else</span>:
+<span class="ln">132</span>            <span class="tk-fn">_set_slot</span>(_weapon_slots[i], <span class="tk-kw">null</span>, <span class="tk-num">0</span>, <span class="tk-num">0</span>, <span class="tk-kw">false</span>)
+<span class="ln">133</span>    <span class="tk-kw">var</span> i := <span class="tk-num">0</span>
+<span class="ln">134</span>    <span class="tk-kw">for</span> passive <span class="tk-kw">in</span> p.passives:
+<span class="ln">135</span>        <span class="tk-kw">if</span> i &gt;= _passive_slots.<span class="tk-fn">size</span>():
+<span class="ln">136</span>            <span class="tk-kw">break</span>
+<span class="ln">137</span>        <span class="tk-fn">_set_slot</span>(_passive_slots[i], passive.icon, p.passives[passive], passive.max_level, <span class="tk-kw">false</span>)
+<span class="ln">138</span>        i += <span class="tk-num">1</span>
+<span class="ln">139</span>    <span class="tk-kw">while</span> i &lt; _passive_slots.<span class="tk-fn">size</span>():
+<span class="ln">140</span>        <span class="tk-fn">_set_slot</span>(_passive_slots[i], <span class="tk-kw">null</span>, <span class="tk-num">0</span>, <span class="tk-num">0</span>, <span class="tk-kw">false</span>)
+<span class="ln">141</span>        i += <span class="tk-num">1</span>
+<span class="ln">142</span>
+<span class="ln">143</span>
+<span class="ln">144</span><span class="tk-com">## Pointers at the screen edge toward the boss and chests that are off screen.</span></code></pre></div><!--/code-->
+<p>Versi Fase 7 hanya mengganti variasi tema dan pips saat nilainya berubah. Mengubah <code>theme_type_variation</code> setiap frame memicu perhitungan ulang gaya; di 1100 musuh optimasi kecil itu menghemat sekitar 1% FPS.</p>
+
+<div class="checkpoint"><span class="tag">Checkpoint</span>
+  <ul>
+    <li><kbd>F5</kbd> (semua senjata maks) lalu <kbd>F7</kbd> (beri relik pasangan evolusi), lalu <kbd>F6</kbd> beberapa kali (jatuhkan peti). Setiap peti berisi satu evolusi sampai kelimanya selesai.</li>
+    <li>Slot evolusi di HUD berbingkai emas. Seraph's Halo menyembuhkan saat pulsa mengenai musuh.</li>
+    <li>Pisau yang sedang terbang saat Thornstorm muncul tetap memberi damage tanpa error.</li>
+  </ul>
+</div>
+<div class="mistakes"><span class="tag">Kesalahan umum</span>
+  <ul>
+    <li><b>"Attempt to call function on a previously freed instance".</b> Ada yang masih memegang node senjata lama. Cari semua tempat yang menyimpan <code>Weapon</code> (proyektil, zona, statistik) dan pindahkan ke yang baru.</li>
+    <li><b>Evolusi ditawarkan di level up.</b> WeaponData evolusi masuk ke <code>UpgradePool.weapons</code>. Evolusi hanya di <code>evolutions</code>.</li>
+    <li><b>Varian scene tidak berubah.</b> Export diubah di skrip, bukan di node varian. Nilai di .tscn varian menimpa default skrip.</li>
+  </ul>
+</div>
+<div class="exercise"><span class="tag">Latihan</span>
+  <ol>
+    <li>Buat evolusi keenam untuk Holy Aura dengan relik lain (mis. Lodestone) sebagai varian <code>aura_weapon.tscn</code> dengan radius dua kali lipat dan warna lain lewat parameter shader. Tanpa skrip baru.</li>
+    <li>Ubah <code>chest_five_chance</code> di Inspector Main ke 1,0 dan buka peti. Apa yang terjadi saat item yang bisa diupgrade habis di tengah undian lima item?</li>
+  </ol>
+</div>
+<nav class="pager" id="pager" aria-label="Halaman sebelumnya dan berikutnya"></nav>
+</article>
+</main>
+</div>
+<script src="assets/search-index.js?v=f641e385"></script>
+<script src="assets/site.js?v=3fa56380"></script>
+<script src="assets/demos.js?v=4520dcc1"></script>
+<script src="assets/demos-swarm.js?v=36474919"></script>
+<script src="assets/demos-systems.js?v=9a72b9ac"></script>
+</body>
+</html>

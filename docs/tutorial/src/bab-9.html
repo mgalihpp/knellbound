@@ -1,0 +1,97 @@
+<!-- title: Bab 9 · Performa dan Langkah Lanjut | desc: Profiling Knellbound, angka FPS per fase, kapan dan bagaimana memindahkan hot path ke C# atau GDExtension, dan ide pengembangan lanjut. -->
+<span class="eyebrow">Bab 9 · Penutup</span>
+<h1>Performa dan Langkah Lanjut</h1>
+<p class="lede">Semua keputusan di Bab 1 dibuat demi performa. Bab ini menunjukkan cara mengukurnya sendiri, angka nyata dari setiap fase, batas pendekatan GDScript, dan ke mana proyek ini bisa dibawa berikutnya.</p>
+
+<h2 id="mengukur">Cara mengukur</h2>
+<div class="callout"><span class="tag">Konsep · ukur dulu, baru optimasi</span><p>Tebakan tentang apa yang lambat hampir selalu salah. Godot punya tiga alat yang cukup untuk proyek ini: <b>Monitors</b> (<span class="menu-path">Debugger → Monitors</span>: FPS, waktu proses, draw call, objek), <b>Profiler</b> (<span class="menu-path">Debugger → Profiler → Start</span>: waktu per fungsi GDScript, kolom <i>Self</i> = waktu di fungsi itu sendiri), dan <b>Visual Profiler</b> (waktu CPU/GPU per tahap render).</p></div>
+<ol class="steps">
+  <li>Matikan vsync supaya FPS tidak terkunci di refresh rate monitor: <span class="menu-path">Project Settings → Display → Window → V-Sync Mode = Disabled</span> (atau sementara dari kode: <code>DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)</code>).</li>
+  <li>Buat situasi berat yang bisa diulang: <kbd>F5</kbd> (semua senjata maks), lalu <kbd>F1</kbd> beberapa kali (+500 musuh). Panel debug HUD menampilkan FPS dan jumlah objek tiap jenis.</li>
+  <li>Jalankan Profiler 10 detik di situasi itu. Urutkan menurut Self. Di proyek ini yang teratas selalu <code>EnemySwarm.tick</code>, <code>_separate</code>, <code>upload</code>, <code>SpatialHash.build</code>, <code>ProjectileField.tick</code>.</li>
+  <li>Ubah satu hal, ukur lagi di situasi yang sama. Profiler GDScript menambah overhead; bandingkan angka FPS tanpa profiler untuk keputusan akhir.</li>
+</ol>
+
+<h2 id="angka">Angka per fase</h2>
+<p>Tabel ini diukur untuk panduan ini dengan skrip driver yang sama di setiap commit fase (worktree terpisah): jendela 1280×720, vsync mati, semua senjata pool di level maks (fase 3+), tiga gelombang <code>spawn_ring</code> (700 + 500 + 300 musuh), pemain berjalan memutar dan tidak bisa mati. FPS dibaca tiap detik dari detik ke-5 sampai ke-9. Angka absolut tergantung mesin; yang penting perbandingannya.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Fase</th><th>Commit</th><th>Senjata / tambahan</th><th>Musuh hidup</th><th>FPS (min–maks)</th><th>Median</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><code>3f048ff</code></td><td>aura saja</td><td>1235–1409</td><td>197–217</td><td><b>208</b></td></tr>
+    <tr><td>2</td><td><code>2bd6ca3</code></td><td>aura saja + gem</td><td>1277–1425</td><td>186–212</td><td><b>192</b></td></tr>
+    <tr><td>3</td><td><code>b84a4fb</code></td><td>5 senjata maks</td><td>776–1199</td><td>180–210</td><td><b>207</b></td></tr>
+    <tr><td>4</td><td><code>35887be</code></td><td>5 senjata maks</td><td>756–1203</td><td>133–186</td><td><b>175</b></td></tr>
+    <tr><td>5</td><td><code>80f5c88</code></td><td>+ perilaku, wave</td><td>755–1203</td><td>143–166</td><td><b>163</b></td></tr>
+    <tr><td>6</td><td><code>464f917</code></td><td>+ angka damage, efek</td><td>742–1219</td><td>105–191</td><td><b>162</b></td></tr>
+    <tr><td>7</td><td><code>0c823de</code></td><td>+ HUD penuh</td><td>761–1185</td><td>155–186</td><td><b>183</b></td></tr>
+    <tr><td>8</td><td><code>HEAD (main)</code></td><td>+ audio, toko</td><td>659–1190</td><td>173–203</td><td><b>178</b></td></tr>
+  </tbody>
+</table></div>
+<p>Yang terlihat: setiap fase menambah kerja per frame (senjata, perilaku, angka damage, HUD), tapi tidak ada fase yang membuat FPS jatuh drastis, karena tidak ada fase yang melanggar aturan inti (tidak ada node per objek, tidak ada alokasi di loop panas, satu upload per sistem). Musuh berkurang di fase 3+ karena senjata maks membunuh ratusan per detik.</p>
+<p>Angka yang dicatat di <code>ARCHITECTURE.md</code> saat pengembangan, di mesin pengembang:</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Kapan</th><th>Situasi</th><th>Hasil</th></tr></thead>
+  <tbody>
+    <tr><td>Fase 7</td><td>vsync mati, ~225 kill/s</td><td>127 FPS</td></tr>
+    <tr><td>Fase 7</td><td>HUD: teks hanya ditulis ulang saat nilai berubah</td><td>biaya HUD ~1% FPS di 1100 musuh</td></tr>
+    <tr><td>Fase 8</td><td>vsync mati, 5 evolusi, ~1067 musuh hidup, 283 kill/s, audio aktif</td><td>125 FPS</td></tr>
+    <tr><td>Fase 8</td><td>~670 kill/s</td><td>~3500 permintaan suara → 168 diputar, puncak 5 voice</td></tr>
+  </tbody>
+</table></div>
+<p>Pengukuran HEAD di dalam editor (game di-embed, vsync mati, 935–1271 musuh hidup, 5 evolusi) memberi 66–116 FPS; menjalankan game di luar editor lebih cepat seperti tabel di atas.</p>
+
+<h2 id="biaya">Ke mana waktu frame pergi</h2>
+<p>Pada 1000+ musuh, hampir seluruh biaya ada di loop GDScript yang menyentuh setiap slot setiap frame:</p>
+<ul>
+  <li><b><code>EnemySwarm.tick</code></b>: gerak per perilaku, satu akar kuadrat per musuh.</li>
+  <li><b><code>SpatialHash.build</code></b> + <b><code>_separate</code></b>: tiga loop counting sort, lalu hingga 12 cek tetangga untuk setengah musuh per frame.</li>
+  <li><b><code>upload()</code></b> semua Field: 9 penulisan float per instance. Di GDScript setiap penulisan indeks packed array adalah panggilan terpisah; ini biaya per instance terbesar.</li>
+  <li><b><code>ProjectileField.tick</code></b>: satu <code>query_circle</code> per proyektil yang hidup.</li>
+</ul>
+<p>Yang <b>tidak</b> mahal: Game (urutan), director, UI, SaveData, Audio. Semuanya bekerja per kejadian atau per frame, bukan per objek.</p>
+
+<h2 id="native">Kapan pindah ke C# atau GDExtension</h2>
+<p>Untuk target proyek ini (≈1000–1500 musuh di 60 FPS di PC desktop), GDScript atas packed array sudah cukup. Kalau kamu ingin 5000+ musuh, atau target perangkat lemah, rencana dari <code>ARCHITECTURE.md</code> adalah memindahkan hot path <b>sambil mempertahankan API publik</b>, sehingga Game, senjata, dan UI tidak berubah:</p>
+<ol class="steps">
+  <li><b><code>EnemySwarm.tick</code> + separasi + <code>SpatialHash</code></b>: loop ketat per slot, ideal untuk GDExtension C++ (atau C# dengan <code>Span&lt;T&gt;</code> atas array struct). Query menulis indeks ke buffer yang dipakai ulang, bukan membuat array baru.</li>
+  <li><b><code>ProjectileField.tick</code></b>: memakai hash yang sama tanpa melewati batas bahasa per proyektil.</li>
+  <li><b>Upload buffer</b>: isi <code>PackedFloat32Array</code> transform + custom di kode native, lalu tetap satu <code>multimesh_set_buffer</code>.</li>
+  <li><b>C# atau GDExtension?</b> C# bila tim lebih nyaman dan cukup dengan peningkatan 5–20×; GDExtension (C++/Rust) bila butuh SIMD atau multithread (<code>WorkerThreadPool</code> per sel grid).</li>
+</ol>
+<div class="callout"><span class="tag">Konsep · batas bahasa</span><p>Memanggil fungsi native dari GDScript punya biaya per panggilan. Pindahkan <b>seluruh loop</b>, bukan isi loop. <code>swarm.tick(dt, target, shots)</code> sebagai satu panggilan native yang memproses 4000 slot jauh lebih cepat daripada 4000 panggilan <code>native_move(i)</code> dari GDScript.</p></div>
+<p>Alternatif lain sebelum menulis kode native: kurangi kerja. Separasi bisa dijalankan sepertiga musuh per frame (<code>separation_stride = 3</code>), musuh jauh di luar layar bisa di-tick dengan dt lebih besar setiap beberapa frame, dan relokasi bisa lebih agresif. Ukur dulu efek setiap perubahan.</p>
+
+<h2 id="ide">Ide pengembangan lanjut</h2>
+<p>Setiap ide di bawah bisa dikerjakan dengan pola yang sudah kamu pelajari. Di kurung: bab yang paling relevan.</p>
+<ul>
+  <li><b>Peta kedua</b> dengan tile tanah, dekorasi, dan <code>WaveTable</code> sendiri; pilih peta di layar pilih hunter (Bab 1, 5, 8).</li>
+  <li><b>Senjata ke-6 dan evolusinya</b>: mis. cambuk yang menyapu setengah lingkaran di depan pemain memakai <code>query_circle</code> + cek sudut (Bab 3, 4).</li>
+  <li><b>Perilaku musuh baru</b>: pengepung yang berputar di radius tetap, atau musuh yang meledak saat mati dan merusak musuh lain (Bab 5, 6).</li>
+  <li><b>Arcana / kartu modifier run</b>: Resource yang mengubah aturan (semua proyektil memantul, gem memberi heal), dipilih di awal run (Bab 2, 8).</li>
+  <li><b>Achievement</b> berbasis rekor di <code>SaveData</code>, dengan migrasi save v3 (Bab 8).</li>
+  <li><b>Lokalisasi</b>: pindahkan teks UI ke file terjemahan Godot (<code>tr()</code>), mulai dari Bahasa Indonesia (Bab 7).</li>
+  <li><b>Sentuhan audio</b>: musik yang naik intensitas saat boss muncul dengan crossfade dua lapis (Bab 8).</li>
+  <li><b>Build web</b>: repo sudah punya preset <code>Web</code> (single-threaded, renderer Compatibility). Ekspor dan ukur ulang performa di browser (README).</li>
+  <li><b>Tes otomatis</b> untuk logika murni: <code>Leveling.add</code>, <code>Stats</code>, <code>DropTable.roll</code> dengan seed tetap, <code>SaveData._from_dict</code> dengan file rusak.</li>
+</ul>
+
+<h2 id="ringkasan">Ringkasan semua bab</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Masalah</th><th>Solusi di Knellbound</th><th>Bab</th></tr></thead>
+  <tbody>
+    <tr><td>Ribuan objek</td><td>Packed array paralel + MultiMesh, satu <code>multimesh_set_buffer</code> per sistem per frame</td><td>1</td></tr>
+    <tr><td>Siapa yang dekat?</td><td>SpatialHash, counting sort, query dengan stamp</td><td>1</td></tr>
+    <tr><td>Urutan update</td><td>Hanya <code>Game._process</code>; sistem punya <code>tick()</code></td><td>1</td></tr>
+    <tr><td>Sprite 2D di dunia 3D</td><td>Billboard sumbu Y + <code>y_stretch = 1/cos(pitch)</code></td><td>1</td></tr>
+    <tr><td>Bonus dari banyak sumber</td><td><code>(base + Σflat) × (1 + Σpercent)</code></td><td>2</td></tr>
+    <tr><td>Layar saat dunia berhenti</td><td><code>process_mode = ALWAYS</code> + antrian pending</td><td>2</td></tr>
+    <tr><td>Proyektil menembus</td><td>Hit memory berbasis uid</td><td>3</td></tr>
+    <tr><td>Variasi tanpa skrip baru</td><td>Export + varian .tscn, data .tres</td><td>3–6</td></tr>
+    <tr><td>Boss di sistem massal</td><td>Slot biasa + BossBrain yang menulis kecepatan</td><td>5</td></tr>
+    <tr><td>Rasa dampak</td><td>Trauma², hit-stop, angka digabung</td><td>6</td></tr>
+    <tr><td>Konsistensi visual UI</td><td>Satu Theme project-wide + type variation</td><td>7</td></tr>
+    <tr><td>Save yang tidak rusak</td><td>tmp → bak → rename, validasi, migrasi bertahap</td><td>8</td></tr>
+    <tr><td>Suara massal</td><td>Cooldown per id, batas per id, pool voice dengan prioritas</td><td>8</td></tr>
+  </tbody>
+</table></div>
+<p>Kalau kamu sampai di sini dan sudah mencoba latihan di tiap bab, kamu punya semua bagian untuk membuat survivors-like sendiri, dengan dunia, senjata, dan aturanmu sendiri. Mulai dari Bab 1 dengan ide sendiri, bukan dengan menyalin repo ini.</p>
